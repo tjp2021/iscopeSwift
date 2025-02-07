@@ -6,6 +6,8 @@ struct MyVideosView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var videoToDelete: Video?
     @State private var showingDeleteConfirmation = false
+    @State private var selectedVideo: Video?
+    @State private var showingVideoPlayer = false
     
     // Grid layout configuration
     private let columns = [
@@ -54,7 +56,8 @@ struct MyVideosView: View {
                                         .clipped()
                                         .contentShape(Rectangle())
                                         .onTapGesture {
-                                            // TODO: Handle video selection
+                                            selectedVideo = video
+                                            showingVideoPlayer = true
                                         }
                                         .contextMenu {
                                             Button(role: .destructive) {
@@ -111,6 +114,13 @@ struct MyVideosView: View {
             } message: {
                 Text("Are you sure you want to delete this video? This action cannot be undone.")
             }
+            .fullScreenCover(isPresented: $showingVideoPlayer, content: {
+                if let video = selectedVideo {
+                    NavigationView {
+                        VideoPlayerView(video: video)
+                    }
+                }
+            })
         }
         .task {
             await viewModel.fetchUserVideos()

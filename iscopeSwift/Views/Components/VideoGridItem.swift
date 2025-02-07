@@ -5,6 +5,15 @@ struct VideoGridItem: View {
     let video: Video
     @State private var thumbnail: UIImage?
     @State private var isLoadingThumbnail = true
+    @State private var duration: Double?
+    @State private var isPressed = false
+    
+    var formattedDuration: String {
+        guard let duration = duration else { return "" }
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -14,6 +23,7 @@ struct VideoGridItem: View {
                 
                 if isLoadingThumbnail {
                     ProgressView()
+                        .tint(.white)
                 }
                 
                 // Thumbnail
@@ -25,8 +35,30 @@ struct VideoGridItem: View {
                         .clipped()
                 }
                 
+                // Play Icon Overlay
+                Image(systemName: "play.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.white.opacity(0.9))
+                    .shadow(color: .black.opacity(0.5), radius: 3)
+                    .opacity(isPressed ? 1 : 0)
+                
                 // Overlays
                 VStack {
+                    // Duration overlay (top right)
+                    HStack {
+                        Spacer()
+                        if let _ = duration {
+                            Text(formattedDuration)
+                                .font(.caption2)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(.black.opacity(0.6))
+                                .cornerRadius(4)
+                                .padding(4)
+                        }
+                    }
+                    
                     Spacer()
                     
                     // Bottom overlay with view count
@@ -52,6 +84,16 @@ struct VideoGridItem: View {
         .aspectRatio(1, contentMode: .fill)
         .onAppear {
             generateThumbnail()
+            fetchDuration()
+        }
+        .pressAction {
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isPressed = true
+            }
+        } onRelease: {
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isPressed = false
+            }
         }
     }
     
@@ -75,6 +117,47 @@ struct VideoGridItem: View {
                 isLoadingThumbnail = false
             }
         }
+    }
+    
+    private func fetchDuration() {
+        guard let videoUrl = URL(string: video.videoUrl) else { return }
+        
+        let asset = AVURLAsset(url: videoUrl)
+        Task {
+            do {
+                let duration = try await asset.load(.duration)
+                await MainActor.run {
+                    self.duration = duration.seconds
+                }
+            } catch {
+                print("Error fetching duration: \(error)")
+            }
+        }
+    }
+}
+
+// Helper view modifier for press gesture
+struct PressAction: ViewModifier {
+    var onPress: () -> Void
+    var onRelease: () -> Void
+    
+    func body(content: Content) -> some View {
+        content
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        onPress()
+                    }
+                    .onEnded { _ in
+                        onRelease()
+                    }
+            )
+    }
+}
+
+extension View {
+    func pressAction(onPress: @escaping () -> Void, onRelease: @escaping () -> Void) -> some View {
+        modifier(PressAction(onPress: onPress, onRelease: onRelease))
     }
 }
 
