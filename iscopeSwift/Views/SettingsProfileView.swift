@@ -166,51 +166,127 @@ struct SettingsProfileView: View {
         }
     }
     
+    private func processImage(_ image: UIImage) -> Data? {
+        print("[SettingsProfileView] 🔍 STEP 1: Starting image processing")
+        
+        do {
+            // Just resize to a tiny size since it's only for profile picture
+            let size = CGSize(width: 200, height: 200)
+            
+            print("[SettingsProfileView] 🔍 STEP 2: Creating image context")
+            UIGraphicsBeginImageContextWithOptions(size, true, 1.0)
+            defer { 
+                print("[SettingsProfileView] 🔍 STEP 3: Ending image context")
+                UIGraphicsEndImageContext() 
+            }
+            
+            // Simple draw with white background
+            print("[SettingsProfileView] 🔍 STEP 4: Drawing white background")
+            UIColor.white.setFill()
+            UIRectFill(CGRect(origin: .zero, size: size))
+            
+            print("[SettingsProfileView] 🔍 STEP 5: Drawing image")
+            image.draw(in: CGRect(origin: .zero, size: size))
+            
+            print("[SettingsProfileView] 🔍 STEP 6: Getting image from context")
+            guard let resizedImage = UIGraphicsGetImageFromCurrentImageContext() else {
+                print("[SettingsProfileView] ❌ FATAL: Failed to get image from context")
+                return nil
+            }
+            
+            print("[SettingsProfileView] 🔍 STEP 7: Converting to JPEG")
+            guard let imageData = resizedImage.jpegData(compressionQuality: 0.5) else {
+                print("[SettingsProfileView] ❌ FATAL: Failed to convert to JPEG")
+                return nil
+            }
+            
+            print("[SettingsProfileView] ✅ SUCCESS: Image processed, size: \(imageData.count) bytes")
+            return imageData
+            
+        } catch {
+            print("[SettingsProfileView] ❌ FATAL ERROR in processImage: \(error)")
+            return nil
+        }
+    }
+    
     private func saveProfile() async throws {
-        guard let user = Auth.auth().currentUser else { return }
+        print("[SettingsProfileView] 🔄 Starting profile save")
+        
+        guard let user = Auth.auth().currentUser else {
+            print("[SettingsProfileView] ❌ No authenticated user")
+            throw URLError(.userAuthenticationRequired)
+        }
         
         isSaving = true
         defer { isSaving = false }
         
-        var updates: [String: Any] = [
-            "username": username
-        ]
+        var updates: [String: Any] = ["username": username]
         
-        // Update email if changed
         if email != user.email {
             try await updateUserEmail(user: user, newEmail: email)
         }
         
-        // Upload profile image if changed
-        if let newImage = profileImage,
-           let imageData = newImage.jpegData(compressionQuality: 0.7) {
-            // Get pre-signed URL
-            let serverUrl = "http://localhost:3000/generate-profile-url"
+        if let newImage = profileImage {
+            guard let imageData = processImage(newImage) else {
+                throw URLError(.cannotDecodeContentData)
+            }
+            
+            print("[SettingsProfileView] 📡 Getting pre-signed URL...")
+            let serverUrl = "http://localhost:3000/generate-presigned-url"
             var request = URLRequest(url: URL(string: serverUrl)!)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            let body = ["fileName": "\(user.uid).jpg"]
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
             
-            let (data, _) = try await URLSession.shared.data(for: request)
-            let response = try JSONDecoder().decode(PresignedUrlResponse.self, from: data)
+            // Add type and path info to distinguish from video uploads
+            let fileName = "\(user.uid).jpg"  // No need for profiles/ prefix, server handles it
+            let requestBody: [String: Any] = [
+                "fileName": fileName,
+                "contentType": "image/jpeg",
+                "isProfile": true
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
             
-            // Upload to S3
-            var uploadRequest = URLRequest(url: URL(string: response.uploadURL)!)
-            uploadRequest.httpMethod = "PUT"
-            uploadRequest.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+            let (data, urlResponse) = try await URLSession.shared.data(for: request)
+            print("[SettingsProfileView] 📡 Pre-signed URL Response: \(String(data: data, encoding: .utf8) ?? "nil")")
             
-            let (_, uploadResponse) = try await URLSession.shared.upload(for: uploadRequest, from: imageData)
-            guard let httpResponse = uploadResponse as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
+            guard let httpUrlResponse = urlResponse as? HTTPURLResponse,
+                  (200...299).contains(httpUrlResponse.statusCode) else {
+                print("[SettingsProfileView] ❌ Failed to get pre-signed URL: \(urlResponse)")
                 throw URLError(.badServerResponse)
             }
             
-            // Store S3 URL in updates
-            updates["profileImageUrl"] = "https://iscope.s3.us-east-2.amazonaws.com/\(user.uid).jpg"
+            let presignedUrl = try JSONDecoder().decode(PresignedUrlResponse.self, from: data)
+            print("[SettingsProfileView] 📡 Got pre-signed URL: \(presignedUrl.uploadURL)")
+            
+            // Upload to S3
+            print("[SettingsProfileView] 📡 Starting S3 upload...")
+            var s3Request = URLRequest(url: URL(string: presignedUrl.uploadURL)!)
+            s3Request.httpMethod = "PUT"
+            
+            // Only set Content-Type header since that's what we signed
+            s3Request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+            
+            print("[SettingsProfileView] 📡 S3 Request Headers: \(s3Request.allHTTPHeaderFields ?? [:])")
+            let (_, uploadResponse) = try await URLSession.shared.upload(for: s3Request, from: imageData)
+            guard let httpResponse = uploadResponse as? HTTPURLResponse else {
+                print("[SettingsProfileView] ❌ Invalid S3 response type")
+                throw URLError(.badServerResponse)
+            }
+            
+            print("[SettingsProfileView] 📡 S3 Response Status: \(httpResponse.statusCode)")
+            print("[SettingsProfileView] 📡 S3 Response Headers: \(httpResponse.allHeaderFields)")
+            
+            if !(200...299).contains(httpResponse.statusCode) {
+                print("[SettingsProfileView] ❌ S3 upload failed with status: \(httpResponse.statusCode)")
+                throw URLError(.badServerResponse)
+            }
+            
+            // Use the key from the server response to build the URL
+            let s3Url = "https://iscope.s3.us-east-2.amazonaws.com/\(presignedUrl.imageKey)"
+            print("[SettingsProfileView] ✅ S3 upload successful, URL: \(s3Url)")
+            updates["profileImageUrl"] = s3Url
         }
         
-        // Update Firestore
         try await db.collection("users").document(user.uid).setData(updates, merge: true)
         showSuccessAlert = true
     }
@@ -322,6 +398,8 @@ struct ImagePicker: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.delegate = context.coordinator
+        picker.allowsEditing = true // Use built-in editing instead of background removal
+        picker.sourceType = .photoLibrary
         return picker
     }
     
@@ -339,13 +417,23 @@ struct ImagePicker: UIViewControllerRepresentable {
         }
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            if let image = info[.originalImage] as? UIImage {
-                parent.image = image
+            print("[ImagePicker] Picked image with keys: \(info.keys)")
+            
+            // Use edited image if available, otherwise use original
+            if let editedImage = info[.editedImage] as? UIImage {
+                print("[ImagePicker] Using edited image: size=\(editedImage.size), scale=\(editedImage.scale)")
+                parent.image = editedImage
+            } else if let originalImage = info[.originalImage] as? UIImage {
+                print("[ImagePicker] Using original image: size=\(originalImage.size), scale=\(originalImage.scale)")
+                parent.image = originalImage
+            } else {
+                print("[ImagePicker] ❌ No valid image found in picker response")
             }
             parent.dismiss()
         }
         
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            print("[ImagePicker] Picker cancelled")
             parent.dismiss()
         }
     }
