@@ -298,7 +298,9 @@ struct SettingsProfileView: View {
             if let url = URL(string: s3Url) {
                 let (data, _) = try await URLSession.shared.data(from: url)
                 if let image = UIImage(data: data) {
-                    profileImage = image
+                    DispatchQueue.main.async {
+                        self.profileImage = image
+                    }
                 }
             }
             
