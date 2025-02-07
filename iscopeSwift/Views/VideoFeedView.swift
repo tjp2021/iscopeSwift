@@ -321,11 +321,14 @@ struct VideoPageView: View {
     @State private var errorMessage: String?
     @State private var isRetrying = false
     @State private var isVisible = false
+    @State private var showingComments = false
     
     var socialSidebar: some View {
         VStack(spacing: 20) {
             Button(action: {
-                // Like action - to be implemented
+                Task {
+                    await viewModel.toggleLike(for: video)
+                }
             }) {
                 VStack {
                     Image(systemName: video.isLiked ? "heart.fill" : "heart")
@@ -338,7 +341,7 @@ struct VideoPageView: View {
             }
             
             Button(action: {
-                // Comments action - to be implemented
+                showingComments = true
             }) {
                 VStack {
                     Image(systemName: "bubble.right")
@@ -456,6 +459,9 @@ struct VideoPageView: View {
         }
         .onChange(of: viewModel.isMuted) { oldValue, newValue in
             player?.isMuted = newValue
+        }
+        .sheet(isPresented: $showingComments) {
+            CommentsView(video: video)
         }
     }
     

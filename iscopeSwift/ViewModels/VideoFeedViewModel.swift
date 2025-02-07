@@ -18,6 +18,42 @@ class VideoFeedViewModel: ObservableObject {
         isMuted.toggle()
     }
     
+    func toggleLike(for video: Video) async {
+        guard let videoId = video.id, let userId = Auth.auth().currentUser?.uid else { return }
+        
+        do {
+            let likeRef = db.collection("videos").document(videoId).collection("likes").document(userId)
+            let videoRef = db.collection("videos").document(videoId)
+            
+            if video.isLiked {
+                // Unlike
+                try await likeRef.delete()
+                try await videoRef.updateData([
+                    "likeCount": FieldValue.increment(Int64(-1))
+                ])
+                
+                if let index = videos.firstIndex(where: { $0.id == videoId }) {
+                    videos[index].isLiked = false
+                    videos[index].likeCount -= 1
+                }
+            } else {
+                // Like
+                try await likeRef.setData(["createdAt": FieldValue.serverTimestamp()])
+                try await videoRef.updateData([
+                    "likeCount": FieldValue.increment(Int64(1))
+                ])
+                
+                if let index = videos.firstIndex(where: { $0.id == videoId }) {
+                    videos[index].isLiked = true
+                    videos[index].likeCount += 1
+                }
+            }
+        } catch {
+            print("[VideoFeedViewModel] Error toggling like: \(error.localizedDescription)")
+            self.error = error.localizedDescription
+        }
+    }
+    
     func refreshVideos() async {
         print("[VideoFeedViewModel] Starting refresh")
         guard !isRefreshing else { return }

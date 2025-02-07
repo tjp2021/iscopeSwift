@@ -95,9 +95,9 @@ class EngagementViewModel: ObservableObject {
                 return Comment(
                     id: document.documentID,
                     videoId: videoId,
+                    text: data["text"] as? String ?? "",
                     userId: data["userId"] as? String ?? "",
                     userDisplayName: data["userDisplayName"] as? String ?? "Anonymous",
-                    text: data["text"] as? String ?? "",
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     likeCount: data["likeCount"] as? Int ?? 0,
                     isLiked: false
@@ -149,9 +149,9 @@ class EngagementViewModel: ObservableObject {
                 return Comment(
                     id: document.documentID,
                     videoId: videoId,
+                    text: data["text"] as? String ?? "",
                     userId: data["userId"] as? String ?? "",
                     userDisplayName: data["userDisplayName"] as? String ?? "Anonymous",
-                    text: data["text"] as? String ?? "",
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     likeCount: data["likeCount"] as? Int ?? 0,
                     isLiked: false
@@ -246,17 +246,16 @@ class EngagementViewModel: ObservableObject {
     func deleteComment(_ comment: Comment) async {
         // Since we've updated the Comment model to have optional videoId,
         // we need to handle the optional case here
-        guard let commentId = comment.id,
-              let videoId = comment.videoId else {
-            print("[EngagementViewModel] ❌ Failed to delete comment: Invalid comment ID or video ID")
-            error = "Invalid comment ID or video ID"
+        guard let videoId = comment.videoId else {
+            print("[EngagementViewModel] ❌ Failed to delete comment: Invalid video ID")
+            error = "Invalid video ID"
             showError = true
             return
         }
         
         do {
             let videoRef = db.collection("videos").document(videoId)
-            let commentRef = videoRef.collection("comments").document(commentId)
+            let commentRef = videoRef.collection("comments").document(comment.id)
             
             // Get video document outside transaction
             let videoDoc = try await videoRef.getDocument()
@@ -269,7 +268,7 @@ class EngagementViewModel: ObservableObject {
             })
             
             print("[EngagementViewModel] ✅ Successfully deleted comment")
-            comments.removeAll { $0.id == commentId }
+            comments.removeAll { $0.id == comment.id }
         } catch {
             print("[EngagementViewModel] ❌ Error deleting comment: \(error.localizedDescription)")
             self.error = error.localizedDescription
