@@ -210,6 +210,19 @@ class VideoFeedViewModel: ObservableObject {
         }
     }
     
+    private func createVideoData(_ video: Video) -> [String: Any] {
+        return [
+            "title": video.title,
+            "description": video.description,
+            "videoUrl": video.videoUrl,
+            "creatorId": video.creatorId,
+            "createdAt": video.createdAt,
+            "likeCount": video.likeCount,
+            "commentCount": video.commentCount,
+            "viewCount": video.viewCount
+        ] as [String: Any]
+    }
+    
     // MARK: - Development Helpers
     
     #if DEBUG
@@ -256,16 +269,8 @@ class VideoFeedViewModel: ObservableObject {
         
         do {
             for video in testVideos {
-                try await db.collection("videos").document(video.id!).setData([
-                    "title": video.title,
-                    "description": video.description,
-                    "videoUrl": video.videoUrl,
-                    "creatorId": video.creatorId,
-                    "createdAt": video.createdAt,
-                    "likeCount": video.likeCount,
-                    "commentCount": video.commentCount,
-                    "viewCount": video.viewCount
-                ])
+                let data = createVideoData(video)
+                try await db.collection("videos").document(video.id!).setData(data)
             }
             print("[VideoFeedViewModel] ✅ Test data seeded successfully")
             await fetchVideos()
@@ -274,4 +279,6 @@ class VideoFeedViewModel: ObservableObject {
         }
     }
     #endif
-} 
+}
+
+extension Video: @unchecked Sendable {}  // Since Video is a struct with only Sendable properties 

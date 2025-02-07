@@ -4,7 +4,8 @@ import FirebaseFirestore
 
 struct VideoEngagementView: View {
     @Binding var video: Video
-    @StateObject private var viewModel = EngagementViewModel()
+    @ObservedObject var viewModel: VideoFeedViewModel
+    @StateObject private var engagementViewModel = EngagementViewModel()
     @State private var showComments = false
     @State private var newComment = ""
     @State private var showLikeAnimation = false
@@ -14,7 +15,7 @@ struct VideoEngagementView: View {
             // Like button
             Button {
                 Task {
-                    let updatedVideo = await viewModel.toggleLike(for: video)
+                    let updatedVideo = await engagementViewModel.toggleLike(for: video)
                     video = updatedVideo
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                         showLikeAnimation = true
@@ -41,7 +42,7 @@ struct VideoEngagementView: View {
             // Comment button
             Button {
                 Task {
-                    await viewModel.fetchComments(for: video.id)
+                    await engagementViewModel.fetchComments(for: video.id)
                     showComments = true
                 }
             } label: {
@@ -58,16 +59,16 @@ struct VideoEngagementView: View {
                 .contentShape(Rectangle())
             }
             
-            // Share button
+            // Mute button
             Button {
-                // Share functionality
+                viewModel.toggleMute()
             } label: {
                 VStack(spacing: 4) {
-                    Image(systemName: "square.and.arrow.up")
+                    Image(systemName: viewModel.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         .font(.system(size: 30))
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                    Text("Share")
+                    Text(viewModel.isMuted ? "Unmute" : "Mute")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                 }
@@ -76,24 +77,8 @@ struct VideoEngagementView: View {
             }
         }
         .padding(.trailing, 8)
-        .sheet(isPresented: $showComments, onDismiss: {
-            Task {
-                // Refresh video data to get updated comment count
-                if let videoId = video.id {
-                    let db = Firestore.firestore()
-                    do {
-                        let doc = try await db.collection("videos").document(videoId).getDocument()
-                        if let data = doc.data(),
-                           let commentCount = data["commentCount"] as? Int {
-                            video.commentCount = commentCount
-                        }
-                    } catch {
-                        print("[VideoEngagementView] Error refreshing video data: \(error.localizedDescription)")
-                    }
-                }
-            }
-        }) {
-            CommentsView(video: video)
+        .sheet(isPresented: $showComments) {
+            CommentsView(video: $video)
         }
     }
 } 

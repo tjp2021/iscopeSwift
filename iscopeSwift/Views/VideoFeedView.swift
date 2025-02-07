@@ -323,72 +323,6 @@ struct VideoPageView: View {
     @State private var isVisible = false
     @State private var showingComments = false
     
-    var socialSidebar: some View {
-        VStack(spacing: 20) {
-            Button(action: {
-                Task {
-                    await viewModel.toggleLike(for: video)
-                }
-            }) {
-                VStack {
-                    Image(systemName: video.isLiked ? "heart.fill" : "heart")
-                        .foregroundColor(video.isLiked ? .red : .white)
-                        .font(.system(size: 28))
-                    Text("\(video.likeCount)")
-                        .foregroundColor(.white)
-                        .font(.caption)
-                }
-            }
-            
-            Button(action: {
-                showingComments = true
-            }) {
-                VStack {
-                    Image(systemName: "bubble.right")
-                        .foregroundColor(.white)
-                        .font(.system(size: 28))
-                    Text("\(video.commentCount)")
-                        .foregroundColor(.white)
-                        .font(.caption)
-                }
-            }
-            
-            Button(action: {
-                viewModel.toggleMute()
-            }) {
-                VStack {
-                    Image(systemName: viewModel.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .foregroundColor(.white)
-                        .font(.system(size: 28))
-                    Text(viewModel.isMuted ? "Unmute" : "Mute")
-                        .foregroundColor(.white)
-                        .font(.caption)
-                }
-            }
-        }
-        .padding(.trailing, 8)
-    }
-    
-    var overlayContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(video.title)
-                .font(.title3)
-                .bold()
-                .foregroundColor(.white)
-            Text(video.description)
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.8))
-        }
-        .padding()
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-    
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -400,7 +334,7 @@ struct VideoPageView: View {
                             overlayContent
                         }
                         .overlay(alignment: .trailing) {
-                            socialSidebar
+                            VideoEngagementView(video: $video, viewModel: viewModel)
                                 .padding(.trailing, 16)
                                 .padding(.bottom, 100)
                         }
@@ -461,7 +395,7 @@ struct VideoPageView: View {
             player?.isMuted = newValue
         }
         .sheet(isPresented: $showingComments) {
-            CommentsView(video: video)
+            CommentsView(video: .constant(video))
         }
     }
     
@@ -494,6 +428,26 @@ struct VideoPageView: View {
             setupVideo()
             isRetrying = false
         }
+    }
+    
+    private var overlayContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(video.title)
+                .font(.title3)
+                .bold()
+                .foregroundColor(.white)
+            Text(video.description)
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.8))
+        }
+        .padding()
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
 }
 

@@ -122,13 +122,13 @@ class CommentsViewModel: ObservableObject {
 }
 
 struct CommentsView: View {
-    let video: Video
+    @Binding var video: Video
     @StateObject private var viewModel: CommentsViewModel
     @Environment(\.dismiss) private var dismiss
     
-    init(video: Video) {
-        self.video = video
-        _viewModel = StateObject(wrappedValue: CommentsViewModel(videoId: video.id ?? ""))
+    init(video: Binding<Video>) {
+        self._video = video
+        _viewModel = StateObject(wrappedValue: CommentsViewModel(videoId: video.wrappedValue.id ?? ""))
     }
     
     var body: some View {
@@ -142,6 +142,8 @@ struct CommentsView: View {
                             CommentRowView(comment: comment, onDelete: {
                                 Task {
                                     await viewModel.deleteComment(comment)
+                                    // Update video comment count immediately
+                                    video.commentCount = max(0, video.commentCount - 1)
                                 }
                             })
                         }
@@ -158,6 +160,8 @@ struct CommentsView: View {
                     Button("Post") {
                         Task {
                             await viewModel.addComment()
+                            // Update video comment count immediately
+                            video.commentCount += 1
                         }
                     }
                     .disabled(viewModel.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
