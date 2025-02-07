@@ -535,3 +535,97 @@ Anti-Patterns to Avoid:
 - Inconsistent optional handling
 - Complex transactions
 - Silent error handling 
+
+# Video Player Evolution Analysis
+
+## Historical Learnings
+
+### Working Patterns
+1. `NavigationStack` over `NavigationView`
+   - Modern navigation API provides better control
+   - Reduces ambiguity issues
+   - More explicit navigation context
+
+2. Dedicated Views for Specific Use Cases
+   - `CreatorVideoDetailView` for creator-specific features
+   - Separate concerns and responsibilities
+   - Better matches platform patterns
+
+3. State Management
+   - `isPlayerReady` for player initialization
+   - `isPlaying` for playback control
+   - Clear state transitions
+
+4. Proper Cleanup
+   - Consistent player cleanup in `onDisappear`
+   - Resource management in dismiss actions
+   - Memory leak prevention
+
+### Anti-Patterns Identified
+1. Print Statements in View Body
+   - Caused 'buildExpression' errors
+   - Violated SwiftUI view builder rules
+   - Fixed by moving to lifecycle methods
+
+2. View Reuse Without Adaptation
+   - Initially tried reusing `VideoPlayerView`
+   - Different requirements led to issues
+   - Solved with dedicated implementations
+
+3. Complex View Hierarchies
+   - Unnecessary navigation nesting
+   - Ambiguous toolbar contexts
+   - Simplified with clear hierarchy
+
+4. Direct State Mutations
+   - Lacked proper lifecycle management
+   - Potential race conditions
+   - Improved with proper state handlers
+
+### Error Resolution Timeline
+1. Toolbar Ambiguity
+   - Problem: Unclear toolbar context
+   - Solution: Explicit `navigationBarItems`
+   - Result: Clear navigation structure
+
+2. Build Expression Errors
+   - Problem: Print statements in view body
+   - Solution: Proper lifecycle logging
+   - Result: Clean view builders
+
+3. Player Mounting Issues
+   - Problem: Player not appearing
+   - Solution: Dedicated view + state management
+   - Result: Reliable player presentation
+
+### Recommendations
+1. View Architecture
+   - Use dedicated views for specific features
+   - Keep navigation hierarchy simple
+   - Follow platform patterns
+
+2. State Management
+   - Clear state ownership
+   - Proper cleanup routines
+   - Observable state changes
+
+3. Player Lifecycle
+   - Consistent initialization
+   - Resource cleanup
+   - Error handling
+
+### Future Considerations
+1. Technical Improvements
+   - Memory optimization
+   - Bandwidth management
+   - State persistence
+
+2. Feature Enhancements
+   - Analytics tracking
+   - Caching strategies
+   - Performance monitoring
+
+3. Platform Alignment
+   - Social media patterns
+   - Creator tools
+   - Engagement features 
