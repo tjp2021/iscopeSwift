@@ -44,11 +44,13 @@ struct MyVideosView: View {
                     ScrollView {
                         VStack(spacing: 0) {
                             ProfileHeaderView(totalVideos: viewModel.videos.count, totalViews: totalViews)
+                                .padding(.bottom)
                             
                             LazyVGrid(columns: columns, spacing: 1) {
                                 ForEach(viewModel.videos) { video in
                                     VideoGridItem(video: video)
-                                        .frame(height: UIScreen.main.bounds.width / 3) // Square aspect ratio
+                                        .aspectRatio(1, contentMode: .fill)
+                                        .frame(maxWidth: .infinity)
                                         .clipped()
                                         .contentShape(Rectangle())
                                         .onTapGesture {

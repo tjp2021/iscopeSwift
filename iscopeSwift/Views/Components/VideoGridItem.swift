@@ -7,38 +7,49 @@ struct VideoGridItem: View {
     @State private var isLoadingThumbnail = true
     
     var body: some View {
-        ZStack {
-            // Background
-            Color.black
-            
-            if isLoadingThumbnail {
-                ProgressView()
-            }
-            
-            // Thumbnail
-            if let thumbnail = thumbnail {
-                Image(uiImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            }
-            
-            // Overlay
-            VStack {
-                Spacer()
+        GeometryReader { geometry in
+            ZStack {
+                // Background
+                Color.black
                 
-                // Bottom overlay with view count
-                HStack {
-                    Image(systemName: "eye.fill")
-                        .font(.caption2)
-                    Text("\(video.viewCount)")
-                        .font(.caption2)
-                    Spacer()
+                if isLoadingThumbnail {
+                    ProgressView()
                 }
-                .foregroundColor(.white)
-                .padding(6)
-                .background(Color.black.opacity(0.3))
+                
+                // Thumbnail
+                if let thumbnail = thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                }
+                
+                // Overlays
+                VStack {
+                    Spacer()
+                    
+                    // Bottom overlay with view count
+                    HStack {
+                        Image(systemName: "eye.fill")
+                            .font(.caption2)
+                        Text("\(video.viewCount)")
+                            .font(.caption2)
+                        Spacer()
+                    }
+                    .foregroundColor(.white)
+                    .padding(4)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                }
             }
         }
+        .aspectRatio(1, contentMode: .fill)
         .onAppear {
             generateThumbnail()
         }
