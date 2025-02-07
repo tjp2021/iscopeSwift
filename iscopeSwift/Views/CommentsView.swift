@@ -137,9 +137,26 @@ struct CommentsView: View {
                 } else {
                     List {
                         ForEach(viewModel.comments) { comment in
-                            HStack {
-                                Text(comment.text)
-                                    .font(.body)
+                            HStack(alignment: .top, spacing: 12) {
+                                // Profile Image
+                                Circle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .overlay(
+                                        Text(String(comment.userDisplayName.prefix(1)).uppercased())
+                                            .foregroundColor(.gray)
+                                    )
+                                    .frame(width: 40, height: 40)
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    // Username/Email
+                                    Text(comment.userDisplayName)
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                    
+                                    // Comment text
+                                    Text(comment.text)
+                                        .font(.body)
+                                }
                                 
                                 Spacer()
                                 
@@ -156,9 +173,10 @@ struct CommentsView: View {
                                     }
                                 }
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, 8)
                         }
                     }
+                    .listStyle(PlainListStyle())
                 }
                 
                 // Comment input
