@@ -15,8 +15,8 @@ struct VideoFeedView: View {
             ZStack {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                        ForEach(viewModel.videos) { video in
-                            VideoPageView(video: video)
+                        ForEach($viewModel.videos) { $video in
+                            VideoPageView(video: $video)
                                 .frame(width: geometry.size.width, height: geometry.size.height)
                                 .id(video.id)
                         }
@@ -292,7 +292,7 @@ class VideoPlayerManager: NSObject, ObservableObject {
 }
 
 struct VideoPageView: View {
-    let video: Video
+    @Binding var video: Video
     @StateObject private var playerManager = VideoPlayerManager()
     @State private var player: AVPlayer?
     @State private var showError = false
@@ -308,25 +308,31 @@ struct VideoPageView: View {
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .edgesIgnoringSafeArea(.all)
                         .overlay(
-                            VStack {
-                                Spacer()
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(video.title)
-                                        .font(.title3)
-                                        .bold()
-                                        .foregroundColor(.white)
-                                    Text(video.description)
-                                        .font(.subheadline)
-                                        .foregroundColor(.white.opacity(0.8))
-                                }
-                                .padding()
-                                .background(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
-                                        startPoint: .top,
-                                        endPoint: .bottom
+                            HStack {
+                                // Video info and engagement
+                                VStack(alignment: .leading) {
+                                    Spacer()
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(video.title)
+                                            .font(.title3)
+                                            .bold()
+                                            .foregroundColor(.white)
+                                        Text(video.description)
+                                            .font(.subheadline)
+                                            .foregroundColor(.white.opacity(0.8))
+                                    }
+                                    .padding()
+                                    .background(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
                                     )
-                                )
+                                }
+                                
+                                // Engagement buttons
+                                VideoEngagementView(video: $video)
                             }
                         )
                 }

@@ -11,6 +11,19 @@ service cloud.firestore {
     // Allow authenticated users to read and write videos during development
     match /videos/{videoId} {
       allow read, write: if request.auth != null;  // Temporarily more permissive for development
+      
+      // Allow authenticated users to manage likes
+      match /likes/{userId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Allow authenticated users to manage comments
+      match /comments/{commentId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      }
     }
   }
 } 

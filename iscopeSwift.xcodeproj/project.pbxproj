@@ -23,6 +23,9 @@
 		9B62A2582D55D01000844213 /* VideoFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2552D55D01000844213 /* VideoFeedViewModel.swift */; };
 		9B62A2592D55D01000844213 /* UploadViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2542D55D01000844213 /* UploadViewModel.swift */; };
 		9B62A25B2D55D0B200844213 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9B62A25A2D55D0B200844213 /* Assets.xcassets */; };
+		9B62A25D2D55E0A800844213 /* Comment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A25C2D55E0A800844213 /* Comment.swift */; };
+		9B62A25F2D55E0BD00844213 /* EngagementViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A25E2D55E0BD00844213 /* EngagementViewModel.swift */; };
+		9B62A2612D55E0C900844213 /* VideoEngagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2602D55E0C900844213 /* VideoEngagementView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +44,9 @@
 		9B62A2542D55D01000844213 /* UploadViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadViewModel.swift; sourceTree = "<group>"; };
 		9B62A2552D55D01000844213 /* VideoFeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFeedViewModel.swift; sourceTree = "<group>"; };
 		9B62A25A2D55D0B200844213 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9B62A25C2D55E0A800844213 /* Comment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Comment.swift; sourceTree = "<group>"; };
+		9B62A25E2D55E0BD00844213 /* EngagementViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngagementViewModel.swift; sourceTree = "<group>"; };
+		9B62A2602D55E0C900844213 /* VideoEngagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEngagementView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +98,7 @@
 		9B1779FF2D55AFD000B55C8J /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				9B62A2602D55E0C900844213 /* VideoEngagementView.swift */,
 				9B1779F42D55AFD000B55C8D /* VideoFeedView.swift */,
 				9B1779F62D55AFD000B55C8E /* UploadVideoView.swift */,
 				9B1779F82D55AFD000B55C8F /* AuthenticationView.swift */,
@@ -103,6 +110,7 @@
 		9B62A24E2D55CFF800844213 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				9B62A25C2D55E0A800844213 /* Comment.swift */,
 				9B62A24D2D55CFF800844213 /* Video.swift */,
 			);
 			path = Models;
@@ -119,6 +127,7 @@
 		9B62A2562D55D01000844213 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				9B62A25E2D55E0BD00844213 /* EngagementViewModel.swift */,
 				9B62A2532D55D01000844213 /* AuthViewModel.swift */,
 				9B62A2542D55D01000844213 /* UploadViewModel.swift */,
 				9B62A2552D55D01000844213 /* VideoFeedViewModel.swift */,
@@ -206,14 +215,17 @@
 			buildActionMask = 2147483647;
 			files = (
 				9B1779F12D55AFD000B55C8C /* iscopeSwiftApp.swift in Sources */,
+				9B62A2612D55E0C900844213 /* VideoEngagementView.swift in Sources */,
 				9B1779F32D55AFD000B55C8D /* VideoFeedView.swift in Sources */,
 				9B1779F52D55AFD000B55C8E /* UploadVideoView.swift in Sources */,
 				9B1779F72D55AFD000B55C8F /* AuthenticationView.swift in Sources */,
 				9B1779F92D55AFD000B55C8G /* RootView.swift in Sources */,
 				9B62A24F2D55CFF800844213 /* Video.swift in Sources */,
 				9B1779FB2D55AFD000B55C8H /* FirebaseConfig.swift in Sources */,
+				9B62A25F2D55E0BD00844213 /* EngagementViewModel.swift in Sources */,
 				9B62A2572D55D01000844213 /* AuthViewModel.swift in Sources */,
 				9B62A2582D55D01000844213 /* VideoFeedViewModel.swift in Sources */,
+				9B62A25D2D55E0A800844213 /* Comment.swift in Sources */,
 				9B62A2592D55D01000844213 /* UploadViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

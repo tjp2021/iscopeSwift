@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseFirestore
+import FirebaseAuth
 
 @MainActor
 class VideoFeedViewModel: ObservableObject {
@@ -38,7 +39,7 @@ class VideoFeedViewModel: ObservableObject {
             let snapshot = try await query.getDocuments()
             print("[VideoFeedViewModel] Got \(snapshot.documents.count) videos")
             
-            self.videos = snapshot.documents.compactMap { document in
+            let videos = snapshot.documents.compactMap { document in
                 let data = document.data()
                 return Video(
                     id: document.documentID,
@@ -46,8 +47,41 @@ class VideoFeedViewModel: ObservableObject {
                     description: data["description"] as? String ?? "",
                     videoUrl: data["videoUrl"] as? String ?? "",
                     creatorId: data["creatorId"] as? String ?? "",
-                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
+                    likeCount: data["likeCount"] as? Int ?? 0,
+                    commentCount: data["commentCount"] as? Int ?? 0,
+                    isLiked: false,
+                    viewCount: data["viewCount"] as? Int ?? 0
                 )
+            }
+            
+            // Fetch like status for each video if user is logged in
+            if let userId = Auth.auth().currentUser?.uid {
+                await withTaskGroup(of: (String, Bool).self) { group in
+                    for video in videos {
+                        group.addTask {
+                            let likeDoc = try? await self.db.collection("videos")
+                                .document(video.id ?? "")
+                                .collection("likes")
+                                .document(userId)
+                                .getDocument()
+                            return (video.id ?? "", likeDoc?.exists ?? false)
+                        }
+                    }
+                    
+                    var likeStatuses: [String: Bool] = [:]
+                    for await (videoId, isLiked) in group {
+                        likeStatuses[videoId] = isLiked
+                    }
+                    
+                    self.videos = videos.map { video in
+                        var updatedVideo = video
+                        updatedVideo.isLiked = likeStatuses[video.id ?? ""] ?? false
+                        return updatedVideo
+                    }
+                }
+            } else {
+                self.videos = videos
             }
             
             self.lastDocument = snapshot.documents.last
@@ -87,11 +121,45 @@ class VideoFeedViewModel: ObservableObject {
                     description: data["description"] as? String ?? "",
                     videoUrl: data["videoUrl"] as? String ?? "",
                     creatorId: data["creatorId"] as? String ?? "",
-                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
+                    likeCount: data["likeCount"] as? Int ?? 0,
+                    commentCount: data["commentCount"] as? Int ?? 0,
+                    isLiked: false,
+                    viewCount: data["viewCount"] as? Int ?? 0
                 )
             }
             
-            self.videos.append(contentsOf: newVideos)
+            // Fetch like status for each video if user is logged in
+            if let userId = Auth.auth().currentUser?.uid {
+                await withTaskGroup(of: (String, Bool).self) { group in
+                    for video in newVideos {
+                        group.addTask {
+                            let likeDoc = try? await self.db.collection("videos")
+                                .document(video.id ?? "")
+                                .collection("likes")
+                                .document(userId)
+                                .getDocument()
+                            return (video.id ?? "", likeDoc?.exists ?? false)
+                        }
+                    }
+                    
+                    var likeStatuses: [String: Bool] = [:]
+                    for await (videoId, isLiked) in group {
+                        likeStatuses[videoId] = isLiked
+                    }
+                    
+                    let updatedNewVideos = newVideos.map { video in
+                        var updatedVideo = video
+                        updatedVideo.isLiked = likeStatuses[video.id ?? ""] ?? false
+                        return updatedVideo
+                    }
+                    
+                    self.videos.append(contentsOf: updatedNewVideos)
+                }
+            } else {
+                self.videos.append(contentsOf: newVideos)
+            }
+            
             self.lastDocument = snapshot.documents.last
             self.error = nil
             print("[VideoFeedViewModel] Successfully processed additional videos")
@@ -113,7 +181,11 @@ class VideoFeedViewModel: ObservableObject {
                 description: "Beautiful sunset captured at Malibu Beach. The waves were perfect and the colors were amazing!",
                 videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
                 creatorId: "test_user",
-                createdAt: Date()
+                createdAt: Date(),
+                likeCount: 0,
+                commentCount: 0,
+                isLiked: false,
+                viewCount: 0
             ),
             Video(
                 id: UUID().uuidString,
@@ -121,7 +193,11 @@ class VideoFeedViewModel: ObservableObject {
                 description: "Epic hike through the mountains. The views were breathtaking and the weather was perfect for hiking.",
                 videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
                 creatorId: "test_user",
-                createdAt: Date().addingTimeInterval(-86400) // 1 day ago
+                createdAt: Date().addingTimeInterval(-86400),
+                likeCount: 0,
+                commentCount: 0,
+                isLiked: false,
+                viewCount: 0
             ),
             Video(
                 id: UUID().uuidString,
@@ -129,7 +205,11 @@ class VideoFeedViewModel: ObservableObject {
                 description: "24-hour timelapse of the city skyline. Watch as the city comes alive at night!",
                 videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
                 creatorId: "test_user",
-                createdAt: Date().addingTimeInterval(-172800) // 2 days ago
+                createdAt: Date().addingTimeInterval(-172800),
+                likeCount: 0,
+                commentCount: 0,
+                isLiked: false,
+                viewCount: 0
             )
         ]
         
@@ -140,7 +220,10 @@ class VideoFeedViewModel: ObservableObject {
                     "description": video.description,
                     "videoUrl": video.videoUrl,
                     "creatorId": video.creatorId,
-                    "createdAt": video.createdAt
+                    "createdAt": video.createdAt,
+                    "likeCount": video.likeCount,
+                    "commentCount": video.commentCount,
+                    "viewCount": video.viewCount
                 ])
             }
             print("[VideoFeedViewModel] ✅ Test data seeded successfully")
