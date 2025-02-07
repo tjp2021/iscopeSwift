@@ -33,9 +33,7 @@ struct VideoFeedView: View {
                 .scrollTargetBehavior(.paging)
                 .background(Color.black)
                 .refreshable {
-                    Task {
-                        await viewModel.refreshVideos()
-                    }
+                    await viewModel.refreshVideos()
                 }
                 .onChange(of: currentIndex) { _, newValue in
                     if newValue == viewModel.videos.count - 2 {
@@ -323,6 +321,26 @@ struct VideoPageView: View {
     @State private var isRetrying = false
     @State private var isVisible = false
     
+    var overlayContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(video.title)
+                .font(.title3)
+                .bold()
+                .foregroundColor(.white)
+            Text(video.description)
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.8))
+        }
+        .padding()
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -330,34 +348,9 @@ struct VideoPageView: View {
                     CustomVideoPlayer(player: player)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .edgesIgnoringSafeArea(.all)
-                        .overlay(
-                            HStack {
-                                // Video info and engagement
-                                VStack(alignment: .leading) {
-                                    Spacer()
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(video.title)
-                                            .font(.title3)
-                                            .bold()
-                                            .foregroundColor(.white)
-                                        Text(video.description)
-                                            .font(.subheadline)
-                                            .foregroundColor(.white.opacity(0.8))
-                                    }
-                                    .padding()
-                                    .background(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                                }
-                                
-                                // Engagement buttons
-                                VideoEngagementView(video: $video)
-                            }
-                        )
+                        .overlay(alignment: .bottom) {
+                            overlayContent
+                        }
                 }
                 
                 if playerManager.isLoading && !isRetrying {
@@ -505,26 +498,35 @@ struct VideoPlayerView: View {
             Spacer()
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarItems(trailing: 
+            Button {
+                print("[VideoPlayerView] Dismiss button tapped")
+                player?.pause()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+        )
         .onAppear {
+            print("[VideoPlayerView] View appeared")
             if let url = URL(string: video.videoUrl) {
+                print("[VideoPlayerView] Creating player with URL: \(video.videoUrl)")
                 player = AVPlayer(url: url)
                 player?.play()
+            } else {
+                print("[VideoPlayerView] ❌ Failed to create URL from: \(video.videoUrl)")
+            }
+        }
+        .onChange(of: player) { oldValue, newValue in
+            if newValue != nil {
+                print("[VideoPlayerView] Player initialized for video: \(video.title)")
             }
         }
         .onDisappear {
+            print("[VideoPlayerView] View disappeared - cleaning up player")
             player?.pause()
             player = nil
-        }
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    player?.pause()
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-            }
         }
     }
 } 

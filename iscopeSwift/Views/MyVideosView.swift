@@ -56,8 +56,10 @@ struct MyVideosView: View {
                                         .clipped()
                                         .contentShape(Rectangle())
                                         .onTapGesture {
+                                            print("[MyVideosView] Video selected: \(video.title)")
                                             selectedVideo = video
                                             showingVideoPlayer = true
+                                            print("[MyVideosView] Presenting video player, showingVideoPlayer: \(showingVideoPlayer)")
                                         }
                                         .contextMenu {
                                             Button(role: .destructive) {
@@ -116,9 +118,14 @@ struct MyVideosView: View {
             }
             .fullScreenCover(isPresented: $showingVideoPlayer, content: {
                 if let video = selectedVideo {
+                    print("[MyVideosView] Creating VideoPlayerView for: \(video.title)")
                     NavigationView {
                         VideoPlayerView(video: video)
+                        .navigationBarBackButtonHidden(true)
                     }
+                    .navigationViewStyle(.stack)
+                } else {
+                    print("[MyVideosView] ❌ No video selected when presenting player")
                 }
             })
         }
