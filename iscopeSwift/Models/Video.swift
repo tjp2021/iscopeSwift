@@ -1,6 +1,6 @@
 import Foundation
 
-struct Video: Identifiable, Codable {
+struct Video: Identifiable, Codable, Equatable {
     var id: String?
     let title: String
     let description: String
@@ -45,5 +45,18 @@ struct Video: Identifiable, Codable {
         self.commentCount = commentCount
         self.isLiked = isLiked
         self.viewCount = viewCount
+    }
+    
+    static func == (lhs: Video, rhs: Video) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.title == rhs.title &&
+        lhs.description == rhs.description &&
+        lhs.videoUrl == rhs.videoUrl &&
+        lhs.creatorId == rhs.creatorId &&
+        lhs.createdAt == rhs.createdAt &&
+        lhs.likeCount == rhs.likeCount &&
+        lhs.commentCount == rhs.commentCount &&
+        lhs.isLiked == rhs.isLiked &&
+        lhs.viewCount == rhs.viewCount
     }
 } 

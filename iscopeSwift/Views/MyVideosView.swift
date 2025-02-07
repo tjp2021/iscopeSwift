@@ -1,5 +1,87 @@
 import SwiftUI
 import FirebaseAuth
+import AVKit
+
+struct GridVideoPlayerView: View {
+    let video: Video
+    @Environment(\.dismiss) private var dismiss
+    @State private var player: AVPlayer?
+    @State private var isPlayerReady = false
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.edgesIgnoringSafeArea(.all)
+                
+                if let player = player, isPlayerReady {
+                    VideoPlayer(player: player)
+                        .edgesIgnoringSafeArea(.all)
+                } else {
+                    ProgressView()
+                        .tint(.white)
+                }
+                
+                VStack {
+                    Spacer()
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(video.title)
+                            .font(.title2)
+                            .foregroundColor(.white)
+                        Text(video.description)
+                            .font(.body)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .padding()
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(trailing: Button(action: {
+                player?.pause()
+                dismiss()
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.white)
+            })
+            .task {
+                setupPlayer()
+            }
+            .onDisappear {
+                player?.pause()
+                player = nil
+            }
+        }
+    }
+    
+    private func setupPlayer() {
+        guard let url = URL(string: video.videoUrl) else {
+            print("[GridVideoPlayer] Failed to create URL from: \(video.videoUrl)")
+            return
+        }
+        
+        print("[GridVideoPlayer] Setting up player for: \(video.title)")
+        let newPlayer = AVPlayer(url: url)
+        
+        // Add observer for player readiness
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemNewAccessLogEntry,
+            object: newPlayer.currentItem,
+            queue: .main
+        ) { _ in
+            print("[GridVideoPlayer] Player ready for: \(video.title)")
+            isPlayerReady = true
+            newPlayer.play()
+        }
+        
+        self.player = newPlayer
+    }
+}
 
 struct MyVideosView: View {
     @StateObject private var viewModel = MyVideosViewModel()
@@ -21,7 +103,7 @@ struct MyVideosView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Group {
                 if viewModel.isLoading {
                     ProgressView()
@@ -56,10 +138,8 @@ struct MyVideosView: View {
                                         .clipped()
                                         .contentShape(Rectangle())
                                         .onTapGesture {
-                                            print("[MyVideosView] Video selected: \(video.title)")
                                             selectedVideo = video
                                             showingVideoPlayer = true
-                                            print("[MyVideosView] Presenting video player, showingVideoPlayer: \(showingVideoPlayer)")
                                         }
                                         .contextMenu {
                                             Button(role: .destructive) {
@@ -85,13 +165,10 @@ struct MyVideosView: View {
                 }
             }
             .navigationTitle("My Videos")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(leading: Button("Done") {
+                dismiss()
+            })
             .alert("Error", isPresented: $viewModel.showError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -118,18 +195,29 @@ struct MyVideosView: View {
             }
             .fullScreenCover(isPresented: $showingVideoPlayer, content: {
                 if let video = selectedVideo {
-                    print("[MyVideosView] Creating VideoPlayerView for: \(video.title)")
-                    NavigationView {
-                        VideoPlayerView(video: video)
-                        .navigationBarBackButtonHidden(true)
-                    }
-                    .navigationViewStyle(.stack)
-                } else {
-                    print("[MyVideosView] ❌ No video selected when presenting player")
+                    GridVideoPlayerView(video: video)
                 }
             })
+            .onChange(of: selectedVideo) { _, video in
+                if let video = video {
+                    print("[MyVideosView] Video selected: \(video.title)")
+                }
+            }
+            .onChange(of: showingVideoPlayer) { _, isShowing in
+                print("[MyVideosView] Video player presentation state: \(isShowing)")
+                if !isShowing {
+                    selectedVideo = nil
+                }
+            }
+            .onAppear {
+                print("[MyVideosView] View appeared")
+            }
+            .onDisappear {
+                print("[MyVideosView] View disappeared")
+            }
         }
         .task {
+            print("[MyVideosView] Task started - Fetching videos")
             await viewModel.fetchUserVideos()
         }
     }
