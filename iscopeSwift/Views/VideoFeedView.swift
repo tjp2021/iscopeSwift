@@ -291,7 +291,7 @@ class VideoPlayerManager: NSObject, ObservableObject {
     }
     
     func cleanup() {
-        if let player = player, let playerItem = player.currentItem {
+        if let player = player {
             player.pause()
             
             if let timeObserverToken = timeObserverToken {
@@ -299,9 +299,10 @@ class VideoPlayerManager: NSObject, ObservableObject {
                 self.timeObserverToken = nil
             }
             
-            playerItem.removeObserver(self, forKeyPath: #keyPath(AVPlayerItem.status))
+            player.currentItem?.removeObserver(self, forKeyPath: #keyPath(AVPlayerItem.status))
             NotificationCenter.default.removeObserver(self)
         }
+        
         player = nil
         isLoading = true
         error = nil

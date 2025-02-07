@@ -7,6 +7,13 @@ struct MyVideosView: View {
     @State private var videoToDelete: Video?
     @State private var showingDeleteConfirmation = false
     
+    // Grid layout configuration
+    private let columns = [
+        GridItem(.flexible(), spacing: 1),
+        GridItem(.flexible(), spacing: 1),
+        GridItem(.flexible(), spacing: 1)
+    ]
+    
     var totalViews: Int {
         viewModel.videos.reduce(0) { $0 + $1.viewCount }
     }
@@ -35,13 +42,19 @@ struct MyVideosView: View {
                     }
                 } else {
                     ScrollView {
-                        VStack {
+                        VStack(spacing: 0) {
                             ProfileHeaderView(totalVideos: viewModel.videos.count, totalViews: totalViews)
                             
-                            LazyVStack(spacing: 16) {
+                            LazyVGrid(columns: columns, spacing: 1) {
                                 ForEach(viewModel.videos) { video in
-                                    VideoRowView(video: video)
-                                        .swipeActions(edge: .trailing) {
+                                    VideoGridItem(video: video)
+                                        .frame(height: UIScreen.main.bounds.width / 3) // Square aspect ratio
+                                        .clipped()
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            // TODO: Handle video selection
+                                        }
+                                        .contextMenu {
                                             Button(role: .destructive) {
                                                 videoToDelete = video
                                                 showingDeleteConfirmation = true
@@ -54,11 +67,9 @@ struct MyVideosView: View {
                                             } label: {
                                                 Label("Edit", systemImage: "pencil")
                                             }
-                                            .tint(.blue)
                                         }
                                 }
                             }
-                            .padding()
                         }
                     }
                     .refreshable {
