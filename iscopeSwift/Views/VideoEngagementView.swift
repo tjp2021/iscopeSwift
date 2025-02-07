@@ -40,7 +40,7 @@ struct VideoEngagementView: View {
             // Comment button
             Button {
                 Task {
-                    await viewModel.fetchComments(for: video.id ?? "")
+                    await viewModel.fetchComments(for: video.id)
                     showComments = true
                 }
             } label: {
@@ -125,7 +125,7 @@ struct CommentsView: View {
                                 .onAppear {
                                     print("[CommentsView] Loading more comments...")
                                     Task {
-                                        await viewModel.fetchMoreComments(for: video.id ?? "")
+                                        await viewModel.fetchMoreComments(for: video.id)
                                     }
                                 }
                         }
@@ -147,7 +147,7 @@ struct CommentsView: View {
                         Button {
                             print("[CommentsView] Attempting to post comment: '\(newComment)'")
                             Task {
-                                let updatedVideo = await viewModel.postComment(on: video.id ?? "", text: newComment, video: video)
+                                let updatedVideo = await viewModel.postComment(on: video.id, text: newComment, video: video)
                                 if viewModel.error == nil {
                                     print("[CommentsView] Comment posted, updating video with new count: \(updatedVideo.commentCount)")
                                     video = updatedVideo
@@ -155,7 +155,7 @@ struct CommentsView: View {
                                     isCommentFieldFocused = false
                                     
                                     // Verify data persistence
-                                    await viewModel.verifyDataPersistence(for: video.id ?? "")
+                                    await viewModel.verifyDataPersistence(for: video.id)
                                 } else {
                                     showError = true
                                 }
@@ -188,7 +188,7 @@ struct CommentsView: View {
                 print("[CommentsView] View appeared")
                 Task {
                     // Verify data persistence when view appears
-                    await viewModel.verifyDataPersistence(for: video.id ?? "")
+                    await viewModel.verifyDataPersistence(for: video.id)
                 }
             }
             .onDisappear {

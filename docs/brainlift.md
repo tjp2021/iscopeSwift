@@ -321,3 +321,135 @@ Anti-Patterns to Avoid:
 - Not cleaning up video resources
 - Ignoring memory warnings
 - Missing loading states 
+
+# Engagement_System_Analysis
+
+## Problem/Feature Overview
+
+Initial Requirements:
+- Like/unlike functionality for videos
+- Comment system with persistence
+- Real-time UI updates
+- Proper error handling
+
+Key Challenges:
+1. Data Consistency:
+   - Atomic operations for like/comment counts
+   - Real-time UI updates
+   - Data persistence verification
+
+2. Authentication:
+   - User state management
+   - Anonymous fallback
+   - Permission handling
+
+3. Error States:
+   - Network failures
+   - Authentication errors
+   - Transaction failures
+
+Success Criteria:
+- Atomic operations for data consistency
+- Immediate UI feedback
+- Proper error handling
+- Data persistence between sessions
+
+## Solution Attempts
+
+### Attempt #1: Basic Implementation
+- Approach: Direct Firestore updates
+- Implementation: Simple write operations
+- Outcome: Data inconsistency issues
+- Learnings: Need atomic transactions
+
+### Attempt #2: Transaction-Based Updates
+- Approach: Firestore transactions
+- Implementation: Atomic operations
+- Outcome: Better consistency, UI lag
+- Learnings: Need immediate UI updates
+
+### Attempt #3: Comprehensive Solution
+- Approach: Full state management
+- Implementation: 
+  - Transactions for atomicity
+  - Local state updates
+  - Error handling
+  - Data verification
+- Outcome: Successful with minor auth issues
+- Learnings: Need better auth handling
+
+## Final Solution
+
+Implementation Details:
+1. Data Layer:
+   ```swift
+   // Atomic operations
+   transaction.updateData(["likeCount": currentLikeCount + 1])
+   transaction.setData(commentData, forDocument: commentRef)
+   
+   // Local state
+   updatedVideo.likeCount = currentLikeCount + 1
+   self.comments.insert(newComment, at: 0)
+   ```
+
+2. Error Handling:
+   ```swift
+   // Auth checks
+   guard let currentUser = Auth.auth().currentUser else {
+       self.error = "You must be signed in"
+       return video
+   }
+   
+   // Error propagation
+   catch {
+       print("❌ Error: \(error)")
+       self.error = error.localizedDescription
+   }
+   ```
+
+3. Verification:
+   ```swift
+   // Data persistence checks
+   func verifyDataPersistence(for videoId: String)
+   // Real-time UI updates
+   video = updatedVideo
+   ```
+
+Why It Works:
+- Ensures data consistency
+- Provides immediate feedback
+- Handles errors gracefully
+- Verifies persistence
+
+## Key Lessons
+
+Technical Insights:
+1. Always use transactions for related updates
+2. Update UI immediately, verify later
+3. Handle auth state comprehensively
+4. Log operations for debugging
+
+Process Improvements:
+1. Add verification steps
+2. Implement proper error handling
+3. Use detailed logging
+4. Test edge cases
+
+Best Practices:
+1. Atomic operations
+2. Immediate UI feedback
+3. Comprehensive error handling
+4. Data verification
+
+Anti-Patterns to Avoid:
+1. Direct updates without transactions
+2. Delayed UI updates
+3. Missing error handling
+4. Assuming auth state
+
+Next Steps:
+1. Add retry logic
+2. Implement offline support
+3. Add real-time listeners
+4. Improve performance
+5. Add comment editing 

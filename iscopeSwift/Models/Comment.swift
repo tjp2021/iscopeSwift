@@ -2,7 +2,7 @@ import Foundation
 
 struct Comment: Identifiable, Codable {
     var id: String?
-    let videoId: String
+    let videoId: String?
     let userId: String
     let userDisplayName: String
     let text: String
@@ -22,7 +22,7 @@ struct Comment: Identifiable, Codable {
     }
     
     init(id: String? = nil,
-         videoId: String,
+         videoId: String?,
          userId: String,
          userDisplayName: String,
          text: String,

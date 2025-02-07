@@ -32,11 +32,11 @@ Key:
 
 ### Acceptance Criteria
 
-- [ ] User can record or select an existing video from their device
-- [ ] User can add minimal metadata (title, description)
-- [ ] App uploads the video to cloud storage
-- [ ] A video record (metadata + storage URL) is created in the database
-- [ ] User sees an upload confirmation or progress indicator
+- [x] User can record or select an existing video from their device
+- [x] User can add minimal metadata (title, description)
+- [x] App uploads the video to cloud storage
+- [x] A video record (metadata + storage URL) is created in the database
+- [x] User sees an upload confirmation or progress indicator
 
 ## 3. Viewing the Video Feed
 
@@ -45,9 +45,9 @@ Key:
 ### Acceptance Criteria
 
 - [x] User sees a main feed screen showing a list of videos
-- [ ] Each video displays basic info (title, creator, thumbnail)
-- [ ] Scrolling loads more videos (pagination)
-- [ ] Tapping a video transitions to a playback screen
+- [x] Each video displays basic info (title, creator, thumbnail)
+- [x] Scrolling loads more videos (pagination)
+- [x] Tapping a video transitions to a playback screen
 
 ## 4. Engagement: Likes & Comments
 
@@ -55,10 +55,10 @@ Key:
 
 ### Acceptance Criteria
 
-- [ ] User can tap a like button
-- [ ] User can write a comment
-- [ ] The video owner can see the comments
-- [ ] Only authenticated users can like or comment
+- [x] User can tap a like button
+- [x] User can write a comment
+- [x] The video owner can see the comments
+- [x] Only authenticated users can like or comment
 
 ## 5. Creator Dashboard (My Videos & Basic Stats)
 
@@ -67,9 +67,9 @@ Key:
 ### Acceptance Criteria
 
 - [ ] A dedicated "My Videos" screen lists all videos uploaded by the logged-in user
-- [ ] Each listing shows view count, likes count, and comments count
+- [x] Each listing shows view count, likes count, and comments count
 - [ ] User can edit the video's title/description or delete the video
-- [ ] Stats update in near-real-time when likes/comments change
+- [x] Stats update in near-real-time when likes/comments change
 
 ## 6. Content Reporting (Moderation)
 
@@ -88,9 +88,9 @@ Key:
 
 1. Registration & Authentication (Story 1) - [x]
 
-2. Basic Upload/Feed Flow (Stories 2, 3) - [x] Auth redirect & basic feed UI, [ ] Upload flow
+2. Basic Upload/Feed Flow (Stories 2, 3) - [x]
 
-3. Engagement Features (Story 4) - [ ]
+3. Engagement Features (Story 4) - [x]
 
 4. Creator Tools (Story 5) - [ ]
 

@@ -7,6 +7,7 @@ struct VideoFeedView: View {
     @ObservedObject var authViewModel: AuthViewModel
     @StateObject private var viewModel = VideoFeedViewModel()
     @State private var showingUploadSheet = false
+    @State private var showingMyVideosSheet = false
     @State private var showError = false
     @State private var currentIndex = 0
     
@@ -32,7 +33,9 @@ struct VideoFeedView: View {
                 .scrollTargetBehavior(.paging)
                 .background(Color.black)
                 .refreshable {
-                    await viewModel.refreshVideos()
+                    Task {
+                        await viewModel.refreshVideos()
+                    }
                 }
                 .onChange(of: currentIndex) { _, newValue in
                     if newValue == viewModel.videos.count - 2 {
@@ -93,6 +96,22 @@ struct VideoFeedView: View {
                         }
                         
                         Button {
+                            showingMyVideosSheet = true
+                        } label: {
+                            VStack {
+                                Image(systemName: "person.crop.rectangle.stack")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 24))
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.black.opacity(0.5))
+                                    .clipShape(Circle())
+                                Text("My Videos")
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+                            }
+                        }
+                        
+                        Button {
                             showingUploadSheet = true
                         } label: {
                             VStack {
@@ -144,6 +163,9 @@ struct VideoFeedView: View {
         .ignoresSafeArea()
         .sheet(isPresented: $showingUploadSheet) {
             UploadVideoView()
+        }
+        .sheet(isPresented: $showingMyVideosSheet) {
+            MyVideosView()
         }
         .task {
             print("[VideoFeedView] Task started - Fetching videos")
@@ -442,29 +464,6 @@ struct CustomVideoPlayer: UIViewControllerRepresentable {
     
     static func dismantleUIViewController(_ uiViewController: AVPlayerViewController, coordinator: ()) {
         uiViewController.player = nil
-    }
-}
-
-struct VideoRowView: View {
-    let video: Video
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(video.title)
-                .font(.headline)
-            Text(video.description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
-            HStack {
-                Image(systemName: "clock")
-                    .foregroundColor(.secondary)
-                Text(video.createdAt, style: .relative)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
     }
 }
 

@@ -26,6 +26,9 @@
 		9B62A25D2D55E0A800844213 /* Comment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A25C2D55E0A800844213 /* Comment.swift */; };
 		9B62A25F2D55E0BD00844213 /* EngagementViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A25E2D55E0BD00844213 /* EngagementViewModel.swift */; };
 		9B62A2612D55E0C900844213 /* VideoEngagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2602D55E0C900844213 /* VideoEngagementView.swift */; };
+		9B62A2632D55EA5600844213 /* MyVideosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2622D55EA5600844213 /* MyVideosView.swift */; };
+		9B62A2672D55EAE300844213 /* MyVideosViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2662D55EAE300844213 /* MyVideosViewModel.swift */; };
+		9B62A26D2D55EC3100844213 /* VideoRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A26B2D55EC3100844213 /* VideoRowView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,6 +50,9 @@
 		9B62A25C2D55E0A800844213 /* Comment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Comment.swift; sourceTree = "<group>"; };
 		9B62A25E2D55E0BD00844213 /* EngagementViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngagementViewModel.swift; sourceTree = "<group>"; };
 		9B62A2602D55E0C900844213 /* VideoEngagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEngagementView.swift; sourceTree = "<group>"; };
+		9B62A2622D55EA5600844213 /* MyVideosView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyVideosView.swift; sourceTree = "<group>"; };
+		9B62A2662D55EAE300844213 /* MyVideosViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyVideosViewModel.swift; sourceTree = "<group>"; };
+		9B62A26B2D55EC3100844213 /* VideoRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoRowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +104,8 @@
 		9B1779FF2D55AFD000B55C8J /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				9B62A26C2D55EC3100844213 /* Components */,
+				9B62A2622D55EA5600844213 /* MyVideosView.swift */,
 				9B62A2602D55E0C900844213 /* VideoEngagementView.swift */,
 				9B1779F42D55AFD000B55C8D /* VideoFeedView.swift */,
 				9B1779F62D55AFD000B55C8E /* UploadVideoView.swift */,
@@ -127,12 +135,21 @@
 		9B62A2562D55D01000844213 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				9B62A2662D55EAE300844213 /* MyVideosViewModel.swift */,
 				9B62A25E2D55E0BD00844213 /* EngagementViewModel.swift */,
 				9B62A2532D55D01000844213 /* AuthViewModel.swift */,
 				9B62A2542D55D01000844213 /* UploadViewModel.swift */,
 				9B62A2552D55D01000844213 /* VideoFeedViewModel.swift */,
 			);
 			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		9B62A26C2D55EC3100844213 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				9B62A26B2D55EC3100844213 /* VideoRowView.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -218,8 +235,11 @@
 				9B62A2612D55E0C900844213 /* VideoEngagementView.swift in Sources */,
 				9B1779F32D55AFD000B55C8D /* VideoFeedView.swift in Sources */,
 				9B1779F52D55AFD000B55C8E /* UploadVideoView.swift in Sources */,
+				9B62A2672D55EAE300844213 /* MyVideosViewModel.swift in Sources */,
 				9B1779F72D55AFD000B55C8F /* AuthenticationView.swift in Sources */,
 				9B1779F92D55AFD000B55C8G /* RootView.swift in Sources */,
+				9B62A26D2D55EC3100844213 /* VideoRowView.swift in Sources */,
+				9B62A2632D55EA5600844213 /* MyVideosView.swift in Sources */,
 				9B62A24F2D55CFF800844213 /* Video.swift in Sources */,
 				9B1779FB2D55AFD000B55C8H /* FirebaseConfig.swift in Sources */,
 				9B62A25F2D55E0BD00844213 /* EngagementViewModel.swift in Sources */,
