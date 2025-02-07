@@ -17,7 +17,7 @@ struct VideoFeedView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
                         ForEach($viewModel.videos) { $video in
-                            VideoPageView(video: $video)
+                            VideoPageView(video: $video, viewModel: viewModel)
                                 .frame(width: geometry.size.width, height: geometry.size.height)
                                 .id(video.id)
                         }
@@ -314,12 +314,57 @@ class VideoPlayerManager: NSObject, ObservableObject {
 
 struct VideoPageView: View {
     @Binding var video: Video
+    @ObservedObject var viewModel: VideoFeedViewModel
     @StateObject private var playerManager = VideoPlayerManager()
     @State private var player: AVPlayer?
     @State private var showError = false
     @State private var errorMessage: String?
     @State private var isRetrying = false
     @State private var isVisible = false
+    
+    var socialSidebar: some View {
+        VStack(spacing: 20) {
+            Button(action: {
+                // Like action - to be implemented
+            }) {
+                VStack {
+                    Image(systemName: video.isLiked ? "heart.fill" : "heart")
+                        .foregroundColor(video.isLiked ? .red : .white)
+                        .font(.system(size: 28))
+                    Text("\(video.likeCount)")
+                        .foregroundColor(.white)
+                        .font(.caption)
+                }
+            }
+            
+            Button(action: {
+                // Comments action - to be implemented
+            }) {
+                VStack {
+                    Image(systemName: "bubble.right")
+                        .foregroundColor(.white)
+                        .font(.system(size: 28))
+                    Text("\(video.commentCount)")
+                        .foregroundColor(.white)
+                        .font(.caption)
+                }
+            }
+            
+            Button(action: {
+                viewModel.toggleMute()
+            }) {
+                VStack {
+                    Image(systemName: viewModel.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .foregroundColor(.white)
+                        .font(.system(size: 28))
+                    Text(viewModel.isMuted ? "Unmute" : "Mute")
+                        .foregroundColor(.white)
+                        .font(.caption)
+                }
+            }
+        }
+        .padding(.trailing, 8)
+    }
     
     var overlayContent: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -350,6 +395,11 @@ struct VideoPageView: View {
                         .edgesIgnoringSafeArea(.all)
                         .overlay(alignment: .bottom) {
                             overlayContent
+                        }
+                        .overlay(alignment: .trailing) {
+                            socialSidebar
+                                .padding(.trailing, 16)
+                                .padding(.bottom, 100)
                         }
                 }
                 
@@ -404,6 +454,9 @@ struct VideoPageView: View {
                 showError = false
             }
         }
+        .onChange(of: viewModel.isMuted) { oldValue, newValue in
+            player?.isMuted = newValue
+        }
     }
     
     private func setupVideo() {
@@ -416,6 +469,7 @@ struct VideoPageView: View {
         }
         
         player = playerManager.setupPlayer(for: url)
+        player?.isMuted = viewModel.isMuted
         player?.play()
     }
     

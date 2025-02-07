@@ -190,10 +190,8 @@ struct CreatorVideoDetailView: View {
             ) {
                 Button("Delete", role: .destructive) {
                     Task {
-                        if let id = video.id {
-                            await viewModel.deleteVideo(video)
-                            dismiss()
-                        }
+                        await viewModel.deleteVideo(video)
+                        dismiss()
                     }
                 }
                 Button("Cancel", role: .cancel) { }

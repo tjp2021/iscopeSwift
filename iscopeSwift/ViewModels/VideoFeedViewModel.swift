@@ -8,10 +8,15 @@ class VideoFeedViewModel: ObservableObject {
     @Published var error: String?
     @Published var isLoadingMore = false
     @Published var isRefreshing = false
+    @Published var isMuted = false  // Global mute state
     
     private var lastDocument: DocumentSnapshot?
     private let pageSize = 5
     private let db = Firestore.firestore()
+    
+    func toggleMute() {
+        isMuted.toggle()
+    }
     
     func refreshVideos() async {
         print("[VideoFeedViewModel] Starting refresh")
