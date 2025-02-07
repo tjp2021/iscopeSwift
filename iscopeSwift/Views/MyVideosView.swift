@@ -83,6 +83,160 @@ struct GridVideoPlayerView: View {
     }
 }
 
+struct CreatorVideoDetailView: View {
+    let video: Video
+    @Environment(\.dismiss) private var dismiss
+    @State private var player: AVPlayer?
+    @State private var isPlaying = false
+    @State private var showingDeleteConfirmation = false
+    @StateObject private var viewModel = MyVideosViewModel()
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Video Player Section
+                    ZStack {
+                        if let player = player {
+                            VideoPlayer(player: player)
+                                .aspectRatio(16/9, contentMode: .fit)
+                                .overlay(
+                                    Button(action: {
+                                        isPlaying.toggle()
+                                        if isPlaying {
+                                            player.play()
+                                        } else {
+                                            player.pause()
+                                        }
+                                    }) {
+                                        Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                            .font(.system(size: 72))
+                                            .foregroundStyle(.white.opacity(0.8))
+                                    }
+                                    .opacity(isPlaying ? 0 : 1)
+                                )
+                        } else {
+                            ProgressView()
+                                .aspectRatio(16/9, contentMode: .fit)
+                        }
+                    }
+                    
+                    // Video Info Section
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Title and Description
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(video.title)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            
+                            Text(video.description)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // Stats Row
+                        HStack(spacing: 24) {
+                            StatView(count: video.viewCount, icon: "eye.fill", label: "Views")
+                            StatView(count: video.likeCount, icon: "heart.fill", label: "Likes")
+                            StatView(count: video.commentCount, icon: "bubble.right.fill", label: "Comments")
+                        }
+                        
+                        // Post Date
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundColor(.secondary)
+                            Text("Posted \(video.createdAt, style: .relative)")
+                                .foregroundColor(.secondary)
+                        }
+                        .font(.caption)
+                        
+                        Divider()
+                        
+                        // Action Buttons
+                        VStack(spacing: 12) {
+                            Button(action: {
+                                // Share functionality
+                            }) {
+                                Label("Share Video", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            
+                            Button(action: {
+                                showingDeleteConfirmation = true
+                            }) {
+                                Label("Delete Video", systemImage: "trash")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        }
+                    }
+                    .padding()
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(trailing: Button(action: {
+                player?.pause()
+                dismiss()
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            })
+            .confirmationDialog(
+                "Delete Video",
+                isPresented: $showingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        if let id = video.id {
+                            await viewModel.deleteVideo(video)
+                            dismiss()
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Are you sure you want to delete this video? This action cannot be undone.")
+            }
+            .task {
+                setupPlayer()
+            }
+            .onDisappear {
+                player?.pause()
+                player = nil
+            }
+        }
+    }
+    
+    private func setupPlayer() {
+        guard let url = URL(string: video.videoUrl) else { return }
+        let newPlayer = AVPlayer(url: url)
+        self.player = newPlayer
+    }
+}
+
+struct StatView: View {
+    let count: Int
+    let icon: String
+    let label: String
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text("\(count)")
+                    .font(.headline)
+            }
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
 struct MyVideosView: View {
     @StateObject private var viewModel = MyVideosViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -195,7 +349,7 @@ struct MyVideosView: View {
             }
             .fullScreenCover(isPresented: $showingVideoPlayer, content: {
                 if let video = selectedVideo {
-                    GridVideoPlayerView(video: video)
+                    CreatorVideoDetailView(video: video)
                 }
             })
             .onChange(of: selectedVideo) { _, video in
