@@ -29,6 +29,7 @@
 		9B62A2632D55EA5600844213 /* MyVideosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2622D55EA5600844213 /* MyVideosView.swift */; };
 		9B62A2672D55EAE300844213 /* MyVideosViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2662D55EAE300844213 /* MyVideosViewModel.swift */; };
 		9B62A26D2D55EC3100844213 /* VideoRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A26B2D55EC3100844213 /* VideoRowView.swift */; };
+		9B62A2712D55F55D00844213 /* ProfileHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2702D55F55D00844213 /* ProfileHeaderView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +54,7 @@
 		9B62A2622D55EA5600844213 /* MyVideosView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyVideosView.swift; sourceTree = "<group>"; };
 		9B62A2662D55EAE300844213 /* MyVideosViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyVideosViewModel.swift; sourceTree = "<group>"; };
 		9B62A26B2D55EC3100844213 /* VideoRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoRowView.swift; sourceTree = "<group>"; };
+		9B62A2702D55F55D00844213 /* ProfileHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileHeaderView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +106,7 @@
 		9B1779FF2D55AFD000B55C8J /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				9B62A2702D55F55D00844213 /* ProfileHeaderView.swift */,
 				9B62A26C2D55EC3100844213 /* Components */,
 				9B62A2622D55EA5600844213 /* MyVideosView.swift */,
 				9B62A2602D55E0C900844213 /* VideoEngagementView.swift */,
@@ -235,6 +238,7 @@
 				9B62A2612D55E0C900844213 /* VideoEngagementView.swift in Sources */,
 				9B1779F32D55AFD000B55C8D /* VideoFeedView.swift in Sources */,
 				9B1779F52D55AFD000B55C8E /* UploadVideoView.swift in Sources */,
+				9B62A2712D55F55D00844213 /* ProfileHeaderView.swift in Sources */,
 				9B62A2672D55EAE300844213 /* MyVideosViewModel.swift in Sources */,
 				9B1779F72D55AFD000B55C8F /* AuthenticationView.swift in Sources */,
 				9B1779F92D55AFD000B55C8G /* RootView.swift in Sources */,

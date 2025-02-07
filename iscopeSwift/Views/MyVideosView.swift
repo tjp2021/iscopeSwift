@@ -7,6 +7,10 @@ struct MyVideosView: View {
     @State private var videoToDelete: Video?
     @State private var showingDeleteConfirmation = false
     
+    var totalViews: Int {
+        viewModel.videos.reduce(0) { $0 + $1.viewCount }
+    }
+    
     var body: some View {
         NavigationView {
             Group {
@@ -14,6 +18,10 @@ struct MyVideosView: View {
                     ProgressView()
                 } else if viewModel.videos.isEmpty {
                     VStack(spacing: 16) {
+                        ProfileHeaderView(totalVideos: 0, totalViews: 0)
+                        
+                        Spacer()
+                        
                         Image(systemName: "video.slash")
                             .font(.system(size: 48))
                             .foregroundColor(.secondary)
@@ -22,26 +30,35 @@ struct MyVideosView: View {
                         Text("Videos you upload will appear here")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                        
+                        Spacer()
                     }
                 } else {
-                    List {
-                        ForEach(viewModel.videos) { video in
-                            VideoRowView(video: video)
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        videoToDelete = video
-                                        showingDeleteConfirmation = true
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                    
-                                    Button {
-                                        // Edit functionality to be added
-                                    } label: {
-                                        Label("Edit", systemImage: "pencil")
-                                    }
-                                    .tint(.blue)
+                    ScrollView {
+                        VStack {
+                            ProfileHeaderView(totalVideos: viewModel.videos.count, totalViews: totalViews)
+                            
+                            LazyVStack(spacing: 16) {
+                                ForEach(viewModel.videos) { video in
+                                    VideoRowView(video: video)
+                                        .swipeActions(edge: .trailing) {
+                                            Button(role: .destructive) {
+                                                videoToDelete = video
+                                                showingDeleteConfirmation = true
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                            
+                                            Button {
+                                                // Edit functionality to be added
+                                            } label: {
+                                                Label("Edit", systemImage: "pencil")
+                                            }
+                                            .tint(.blue)
+                                        }
                                 }
+                            }
+                            .padding()
                         }
                     }
                     .refreshable {
