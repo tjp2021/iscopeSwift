@@ -309,6 +309,68 @@
           }
         ]
       }
+    },
+
+    "run holistic": {
+      "pattern": "^run\\s+holistic$",
+      "action": "analyze",
+      "template": {
+        "sections": [
+          {
+            "title": "HolisticDebug",
+            "subsections": [
+              {
+                "title": "Context Recap",
+                "analysis": "Recap all past attempts (`run deduce`, `run similar`, `run root`) and summarize major insights, partial fixes, or lingering uncertainties",
+                "format": [
+                  "### Deduce Summary:",
+                  "${deduceData}",
+                  "",
+                  "### Similar Summary:",
+                  "${similarData}",
+                  "",
+                  "### Root Analysis Summary:",
+                  "${rootData}"
+                ]
+              },
+              {
+                "title": "Unexplored or Under-Explored Areas",
+                "analysis": "Identify parts of the codebase or environment that have not been thoroughly examined in previous attempts",
+                "format": [
+                  "Potentially Overlooked Code Regions:",
+                  "- ${region1}",
+                  "- ${region2}",
+                  "",
+                  "Possible External Factors:",
+                  "- ${externalFactor1}",
+                  "- ${externalFactor2}"
+                ]
+              },
+              {
+                "title": "Holistic Synthesis",
+                "analysis": "Pause to carefully think about patterns, environment issues, code architecture, and any contradictory observations",
+                "format": [
+                  "Overall Problem Statement: ${globalProblem}",
+                  "Suspected Underlying Cause: ${underlyingCause}",
+                  "Contradictions or Gaps: ${contradictions}"
+                ]
+              },
+              {
+                "title": "Final Steps",
+                "analysis": "Provide a final recommended plan to debug or fix the issue thoroughly",
+                "format": [
+                  "Recommended Action:",
+                  "1. ${stepOne}",
+                  "2. ${stepTwo}",
+                  "",
+                  "Fallback/Alternative Approaches:",
+                  "- ${alternative1}"
+                ]
+              }
+            ]
+          }
+        ]
+      }
     }
   },
 
