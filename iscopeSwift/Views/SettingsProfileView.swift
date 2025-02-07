@@ -263,10 +263,11 @@ struct SettingsProfileView: View {
             var s3Request = URLRequest(url: URL(string: presignedUrl.uploadURL)!)
             s3Request.httpMethod = "PUT"
             
-            // Only set Content-Type header since that's what we signed
-            s3Request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+            // Must use lowercase header names to match AWS SDK signature calculation
+            s3Request.setValue("image/jpeg", forHTTPHeaderField: "content-type")
             
             print("[SettingsProfileView] 📡 S3 Request Headers: \(s3Request.allHTTPHeaderFields ?? [:])")
+            print("[SettingsProfileView] 📡 S3 Request URL: \(presignedUrl.uploadURL)")
             let (_, uploadResponse) = try await URLSession.shared.upload(for: s3Request, from: imageData)
             guard let httpResponse = uploadResponse as? HTTPURLResponse else {
                 print("[SettingsProfileView] ❌ Invalid S3 response type")
@@ -277,6 +278,10 @@ struct SettingsProfileView: View {
             print("[SettingsProfileView] 📡 S3 Response Headers: \(httpResponse.allHeaderFields)")
             
             if !(200...299).contains(httpResponse.statusCode) {
+                // Get the actual error message from S3
+                if let errorData = try? await URLSession.shared.data(for: s3Request).0 {
+                    print("[SettingsProfileView] ❌ S3 Error Response Body: \(String(data: errorData, encoding: .utf8) ?? "nil")")
+                }
                 print("[SettingsProfileView] ❌ S3 upload failed with status: \(httpResponse.statusCode)")
                 throw URLError(.badServerResponse)
             }
@@ -285,6 +290,19 @@ struct SettingsProfileView: View {
             let s3Url = "https://iscope.s3.us-east-2.amazonaws.com/\(presignedUrl.imageKey)"
             print("[SettingsProfileView] ✅ S3 upload successful, URL: \(s3Url)")
             updates["profileImageUrl"] = s3Url
+            
+            // Update Firestore
+            try await db.collection("users").document(user.uid).setData(updates, merge: true)
+            
+            // Refresh profile image from the new URL
+            if let url = URL(string: s3Url) {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                if let image = UIImage(data: data) {
+                    profileImage = image
+                }
+            }
+            
+            showSuccessAlert = true
         }
         
         try await db.collection("users").document(user.uid).setData(updates, merge: true)

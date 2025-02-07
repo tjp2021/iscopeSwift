@@ -10,6 +10,7 @@ import FirebaseCore
 
 @main
 struct iscopeSwiftApp: App {
+
     init() {
         FirebaseConfig.configure()
     }
