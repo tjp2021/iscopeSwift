@@ -5,13 +5,12 @@ import FirebaseFirestore
 struct ProfileHeaderView: View {
     let totalVideos: Int
     let totalViews: Int
-    @State private var profileImageUrl: String?
-    @State private var profileImage: UIImage?
+    @StateObject private var profileViewModel = ProfileViewModel.shared
     
     var body: some View {
         VStack(spacing: 16) {
             // Profile Image
-            if let profileImage = profileImage {
+            if let profileImage = profileViewModel.profileImage {
                 Image(uiImage: profileImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -52,26 +51,7 @@ struct ProfileHeaderView: View {
         }
         .padding()
         .task {
-            await loadProfileImage()
-        }
-    }
-    
-    private func loadProfileImage() async {
-        guard let userId = Auth.auth().currentUser?.uid else { return }
-        
-        do {
-            let db = Firestore.firestore()
-            let userDoc = try await db.collection("users").document(userId).getDocument()
-            if let userData = userDoc.data(),
-               let imageUrl = userData["profileImageUrl"] as? String,
-               let url = URL(string: imageUrl) {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                if let image = UIImage(data: data) {
-                    self.profileImage = image
-                }
-            }
-        } catch {
-            print("[ProfileHeaderView] Error loading profile image: \(error)")
+            await profileViewModel.loadProfileImage()
         }
     }
 }

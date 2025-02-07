@@ -294,15 +294,8 @@ struct SettingsProfileView: View {
             // Update Firestore
             try await db.collection("users").document(user.uid).setData(updates, merge: true)
             
-            // Refresh profile image from the new URL
-            if let url = URL(string: s3Url) {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                if let image = UIImage(data: data) {
-                    DispatchQueue.main.async {
-                        self.profileImage = image
-                    }
-                }
-            }
+            // Update the shared profile view model
+            ProfileViewModel.shared.updateProfileImage(newImage, url: s3Url)
             
             showSuccessAlert = true
         }
