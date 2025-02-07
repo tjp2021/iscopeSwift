@@ -211,7 +211,7 @@ class VideoFeedViewModel: ObservableObject {
     }
     
     private func createVideoData(_ video: Video) -> [String: Any] {
-        return [
+        let data: [String: Sendable] = [
             "title": video.title,
             "description": video.description,
             "videoUrl": video.videoUrl,
@@ -220,7 +220,8 @@ class VideoFeedViewModel: ObservableObject {
             "likeCount": video.likeCount,
             "commentCount": video.commentCount,
             "viewCount": video.viewCount
-        ] as [String: Any]
+        ]
+        return data
     }
     
     // MARK: - Development Helpers

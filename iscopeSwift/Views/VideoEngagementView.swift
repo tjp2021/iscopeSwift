@@ -7,11 +7,13 @@ struct VideoEngagementView: View {
     @ObservedObject var viewModel: VideoFeedViewModel
     @StateObject private var engagementViewModel = EngagementViewModel()
     @State private var showComments = false
+    @State private var showingUploadSheet = false
+    @State private var showingMyVideosSheet = false
     @State private var newComment = ""
     @State private var showLikeAnimation = false
     
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             // Like button
             Button {
                 Task {
@@ -75,10 +77,46 @@ struct VideoEngagementView: View {
                 .frame(width: 50, height: 50)
                 .contentShape(Rectangle())
             }
+            
+            // Upload button
+            Button {
+                showingUploadSheet = true
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 30))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                }
+                .frame(width: 50, height: 50)
+                .contentShape(Rectangle())
+            }
+            
+            // My Videos button (using profile photo)
+            Button {
+                showingMyVideosSheet = true
+            } label: {
+                VStack(spacing: 4) {
+                    // TODO: Replace with actual profile photo when available
+                    Image(systemName: "person.crop.circle")
+                        .font(.system(size: 30))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                }
+                .frame(width: 50, height: 50)
+                .contentShape(Rectangle())
+            }
         }
         .padding(.trailing, 8)
+        .padding(.top, 50)
         .sheet(isPresented: $showComments) {
             CommentsView(video: $video)
+        }
+        .sheet(isPresented: $showingUploadSheet) {
+            UploadVideoView()
+        }
+        .sheet(isPresented: $showingMyVideosSheet) {
+            MyVideosView()
         }
     }
 } 
