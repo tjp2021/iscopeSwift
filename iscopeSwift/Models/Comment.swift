@@ -7,6 +7,7 @@ struct Comment: Identifiable {
     let text: String
     let userId: String
     let userDisplayName: String
+    let userEmail: String?
     let createdAt: Date
     let likeCount: Int
     let isLiked: Bool
@@ -19,6 +20,7 @@ struct Comment: Identifiable {
             text: data["text"] as? String ?? "",
             userId: data["userId"] as? String ?? "",
             userDisplayName: data["userDisplayName"] as? String ?? "Anonymous",
+            userEmail: data["userEmail"] as? String,
             createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
             likeCount: data["likeCount"] as? Int ?? 0,
             isLiked: false  // This will be set by the caller when needed

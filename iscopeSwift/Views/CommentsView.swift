@@ -40,7 +40,8 @@ class CommentsViewModel: ObservableObject {
     @MainActor
     func addComment() async {
         guard !newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let userId = Auth.auth().currentUser?.uid else { return }
+              let userId = Auth.auth().currentUser?.uid,
+              let userEmail = Auth.auth().currentUser?.email else { return }
         
         let commentText = newComment
         newComment = ""
@@ -70,6 +71,7 @@ class CommentsViewModel: ObservableObject {
                     "text": commentText,
                     "userId": userId,
                     "userDisplayName": Auth.auth().currentUser?.displayName ?? "Anonymous",
+                    "userEmail": userEmail,
                     "createdAt": FieldValue.serverTimestamp(),
                     "likeCount": 0
                 ], forDocument: commentRef)
@@ -137,44 +139,13 @@ struct CommentsView: View {
                 } else {
                     List {
                         ForEach(viewModel.comments) { comment in
-                            HStack(alignment: .top, spacing: 12) {
-                                // Profile Image
-                                Circle()
-                                    .fill(Color.gray.opacity(0.2))
-                                    .overlay(
-                                        Text(String(comment.userDisplayName.prefix(1)).uppercased())
-                                            .foregroundColor(.gray)
-                                    )
-                                    .frame(width: 40, height: 40)
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    // Username/Email
-                                    Text(comment.userDisplayName)
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
-                                    
-                                    // Comment text
-                                    Text(comment.text)
-                                        .font(.body)
+                            CommentRowView(comment: comment, onDelete: {
+                                Task {
+                                    await viewModel.deleteComment(comment)
                                 }
-                                
-                                Spacer()
-                                
-                                // Delete button (only show for comment owner)
-                                if comment.userId == Auth.auth().currentUser?.uid {
-                                    Button(action: {
-                                        Task {
-                                            await viewModel.deleteComment(comment)
-                                        }
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.gray)
-                                            .imageScale(.small)
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 8)
+                            })
                         }
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                     }
                     .listStyle(PlainListStyle())
                 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
 
 struct VideoEngagementView: View {
     @Binding var video: Video
@@ -75,59 +76,24 @@ struct VideoEngagementView: View {
             }
         }
         .padding(.trailing, 8)
-        .sheet(isPresented: $showComments) {
+        .sheet(isPresented: $showComments, onDismiss: {
+            Task {
+                // Refresh video data to get updated comment count
+                if let videoId = video.id {
+                    let db = Firestore.firestore()
+                    do {
+                        let doc = try await db.collection("videos").document(videoId).getDocument()
+                        if let data = doc.data(),
+                           let commentCount = data["commentCount"] as? Int {
+                            video.commentCount = commentCount
+                        }
+                    } catch {
+                        print("[VideoEngagementView] Error refreshing video data: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }) {
             CommentsView(video: video)
         }
-    }
-}
-
-struct CommentRowView: View {
-    let comment: Comment
-    @ObservedObject var viewModel: EngagementViewModel
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(comment.userDisplayName)
-                    .font(.headline)
-                Spacer()
-                Text(comment.createdAt, style: .relative)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Text(comment.text)
-                .font(.body)
-            
-            HStack {
-                Button {
-                    // Like comment functionality
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: comment.isLiked ? "heart.fill" : "heart")
-                            .foregroundColor(comment.isLiked ? .red : .secondary)
-                        if comment.likeCount > 0 {
-                            Text("\(comment.likeCount)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                
-                if let currentUserId = Auth.auth().currentUser?.uid,
-                   currentUserId == comment.userId {
-                    Button {
-                        Task {
-                            await viewModel.deleteComment(comment)
-                        }
-                    } label: {
-                        Text("Delete")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 4)
     }
 } 

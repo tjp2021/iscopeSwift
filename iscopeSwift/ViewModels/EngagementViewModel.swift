@@ -98,6 +98,7 @@ class EngagementViewModel: ObservableObject {
                     text: data["text"] as? String ?? "",
                     userId: data["userId"] as? String ?? "",
                     userDisplayName: data["userDisplayName"] as? String ?? "Anonymous",
+                    userEmail: data["userEmail"] as? String,
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     likeCount: data["likeCount"] as? Int ?? 0,
                     isLiked: false
@@ -152,6 +153,7 @@ class EngagementViewModel: ObservableObject {
                     text: data["text"] as? String ?? "",
                     userId: data["userId"] as? String ?? "",
                     userDisplayName: data["userDisplayName"] as? String ?? "Anonymous",
+                    userEmail: data["userEmail"] as? String,
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     likeCount: data["likeCount"] as? Int ?? 0,
                     isLiked: false
