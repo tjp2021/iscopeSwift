@@ -20,10 +20,50 @@ struct VideoFeedView: View {
                                 .frame(width: geometry.size.width, height: geometry.size.height)
                                 .id(video.id)
                         }
+                        
+                        if viewModel.isLoadingMore {
+                            ProgressView()
+                                .tint(.white)
+                                .frame(height: 44)
+                        }
                     }
+                    .scrollTargetLayout()
                 }
                 .scrollTargetBehavior(.paging)
                 .background(Color.black)
+                .refreshable {
+                    await viewModel.refreshVideos()
+                }
+                .onChange(of: currentIndex) { _, newValue in
+                    if newValue == viewModel.videos.count - 2 {
+                        Task {
+                            await viewModel.fetchMoreVideos()
+                        }
+                    }
+                }
+                
+                if viewModel.videos.isEmpty && !viewModel.isRefreshing {
+                    VStack(spacing: 16) {
+                        Image(systemName: "video.slash")
+                            .font(.system(size: 48))
+                            .foregroundColor(.white)
+                        Text("No videos available")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Button("Refresh") {
+                            Task {
+                                await viewModel.refreshVideos()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                    }
+                }
+                
+                if viewModel.isRefreshing {
+                    ProgressView()
+                        .tint(.white)
+                }
                 
                 // Bottom toolbar with buttons
                 VStack {
@@ -32,7 +72,7 @@ struct VideoFeedView: View {
                         Button(action: {
                             Task {
                                 do {
-                                    try authViewModel.signOut()
+                                    try await authViewModel.signOut()
                                 } catch {
                                     viewModel.error = error.localizedDescription
                                     showError = true
@@ -126,8 +166,12 @@ struct VideoFeedView: View {
 // Player Manager class to handle KVO
 class VideoPlayerManager: NSObject, ObservableObject {
     @Published var isLoading = true
+    @Published var error: Error?
+    @Published private(set) var currentTime: Double = 0
+    
     private var player: AVPlayer?
     private var playerItemContext = 0
+    private var timeObserverToken: Any?
     private var cancellables = Set<AnyCancellable>()
     
     func setupPlayer(for url: URL) -> AVPlayer {
@@ -141,10 +185,18 @@ class VideoPlayerManager: NSObject, ObservableObject {
         // Enable background audio
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-            print("[VideoPlayer] Audio session setup successful")
         } catch {
             print("[VideoPlayer] Audio session setup failed: \(error)")
+            self.error = error
         }
+        
+        // Add periodic time observer only in DEBUG mode
+        #if DEBUG
+        let interval = CMTime(seconds: 2, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+            self?.currentTime = time.seconds
+        }
+        #endif
         
         playerItem.addObserver(
             self,
@@ -152,14 +204,25 @@ class VideoPlayerManager: NSObject, ObservableObject {
             options: [.old, .new],
             context: &playerItemContext
         )
-        print("[VideoPlayer] Added status observer")
         
+        // Add error observer
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemFailedToPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak self] notification in
+            if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error {
+                print("[VideoPlayer] Failed to play to end: \(error)")
+                self?.error = error
+            }
+        }
+        
+        // Add playback ended observer
         NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: playerItem,
             queue: .main
         ) { [weak self] _ in
-            print("[VideoPlayer] Video reached end, looping")
             newPlayer.seek(to: .zero)
             newPlayer.play()
         }
@@ -185,39 +248,45 @@ class VideoPlayerManager: NSObject, ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 switch status {
                 case .readyToPlay:
-                    print("[VideoPlayer] Status: Ready to play")
                     self?.isLoading = false
+                    self?.error = nil
                     self?.player?.play()
                 case .failed:
-                    print("[VideoPlayer] Status: Failed to play")
                     if let error = self?.player?.currentItem?.error {
                         print("[VideoPlayer] Error: \(error)")
+                        self?.error = error
                     }
                     self?.isLoading = false
                 case .unknown:
-                    print("[VideoPlayer] Status: Unknown")
                     self?.isLoading = true
+                    self?.error = nil
                 @unknown default:
-                    print("[VideoPlayer] Status: Unknown default case")
                     self?.isLoading = false
+                    self?.error = nil
                 }
             }
         }
     }
     
     func cleanup() {
-        print("[VideoPlayer] Cleaning up resources")
         if let player = player, let playerItem = player.currentItem {
             player.pause()
+            
+            if let timeObserverToken = timeObserverToken {
+                player.removeTimeObserver(timeObserverToken)
+                self.timeObserverToken = nil
+            }
+            
             playerItem.removeObserver(self, forKeyPath: #keyPath(AVPlayerItem.status))
             NotificationCenter.default.removeObserver(self)
         }
         player = nil
         isLoading = true
+        error = nil
+        currentTime = 0
     }
     
     deinit {
-        print("[VideoPlayer] Manager being deallocated")
         cleanup()
     }
 }
@@ -226,6 +295,10 @@ struct VideoPageView: View {
     let video: Video
     @StateObject private var playerManager = VideoPlayerManager()
     @State private var player: AVPlayer?
+    @State private var showError = false
+    @State private var errorMessage: String?
+    @State private var isRetrying = false
+    @State private var isVisible = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -258,31 +331,87 @@ struct VideoPageView: View {
                         )
                 }
                 
-                if playerManager.isLoading {
-                    ProgressView()
-                        .tint(.white)
+                if playerManager.isLoading && !isRetrying {
+                    ZStack {
+                        Color.black
+                        ProgressView()
+                            .tint(.white)
+                    }
+                }
+                
+                if showError {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 48))
+                            .foregroundColor(.white)
+                        Text(errorMessage ?? "Failed to load video")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                        
+                        if !isRetrying {
+                            Button("Retry") {
+                                retryLoading()
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.white)
+                        } else {
+                            ProgressView()
+                                .tint(.white)
+                        }
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(12)
                 }
             }
         }
         .onAppear {
-            print("[VideoPageView] View appeared for video: \(video.title)")
+            isVisible = true
             setupVideo()
         }
         .onDisappear {
-            print("[VideoPageView] View disappeared for video: \(video.title)")
-            playerManager.cleanup()
-            player = nil
+            isVisible = false
+            cleanup()
+        }
+        .onReceive(playerManager.$error) { error in
+            if let error = error {
+                errorMessage = error.localizedDescription
+                showError = true
+            } else {
+                showError = false
+            }
         }
     }
     
     private func setupVideo() {
+        guard isVisible else { return }
+        
         guard let url = URL(string: video.videoUrl) else {
-            print("[VideoPageView] Invalid URL for video: \(video.title)")
+            errorMessage = "Invalid video URL"
+            showError = true
             return
         }
-        print("[VideoPageView] Setting up video with URL: \(url)")
+        
         player = playerManager.setupPlayer(for: url)
         player?.play()
+    }
+    
+    private func cleanup() {
+        playerManager.cleanup()
+        player = nil
+    }
+    
+    private func retryLoading() {
+        isRetrying = true
+        showError = false
+        cleanup()
+        
+        Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+            setupVideo()
+            isRetrying = false
+        }
     }
 }
 
@@ -291,20 +420,22 @@ struct CustomVideoPlayer: UIViewControllerRepresentable {
     let player: AVPlayer
     
     func makeUIViewController(context: Context) -> AVPlayerViewController {
-        print("[CustomVideoPlayer] Creating AVPlayerViewController")
         let controller = AVPlayerViewController()
         controller.player = player
         controller.showsPlaybackControls = false
         controller.videoGravity = .resizeAspectFill
         controller.allowsPictureInPicturePlayback = true
-        player.play()
         return controller
     }
     
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
-        print("[CustomVideoPlayer] Updating AVPlayerViewController")
-        uiViewController.player = player
-        player.play()
+        if uiViewController.player !== player {
+            uiViewController.player = player
+        }
+    }
+    
+    static func dismantleUIViewController(_ uiViewController: AVPlayerViewController, coordinator: ()) {
+        uiViewController.player = nil
     }
 }
 

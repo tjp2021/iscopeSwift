@@ -5,18 +5,29 @@ import FirebaseFirestore
 class VideoFeedViewModel: ObservableObject {
     @Published var videos: [Video] = []
     @Published var error: String?
+    @Published var isLoadingMore = false
+    @Published var isRefreshing = false
+    
     private var lastDocument: DocumentSnapshot?
-    private var isLoading = false
     private let pageSize = 5
     private let db = Firestore.firestore()
     
+    func refreshVideos() async {
+        print("[VideoFeedViewModel] Starting refresh")
+        guard !isRefreshing else { return }
+        
+        isRefreshing = true
+        lastDocument = nil
+        await fetchVideos()
+        isRefreshing = false
+    }
+    
     func fetchVideos() async {
         print("[VideoFeedViewModel] Starting to fetch videos")
-        guard !isLoading else {
+        guard !isLoadingMore else {
             print("[VideoFeedViewModel] Fetch already in progress")
             return
         }
-        isLoading = true
         
         do {
             let query = db.collection("videos")
@@ -46,17 +57,17 @@ class VideoFeedViewModel: ObservableObject {
             print("[VideoFeedViewModel] Error fetching videos: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
-        
-        isLoading = false
     }
     
     func fetchMoreVideos() async {
         print("[VideoFeedViewModel] Starting to fetch more videos")
-        guard !isLoading, let lastDocument = lastDocument else {
-            print("[VideoFeedViewModel] Cannot fetch more: isLoading=\(isLoading), lastDocument=\(lastDocument != nil)")
+        guard !isLoadingMore, let lastDocument = lastDocument else {
+            print("[VideoFeedViewModel] Cannot fetch more: isLoadingMore=\(isLoadingMore), lastDocument=\(lastDocument != nil)")
             return
         }
-        isLoading = true
+        
+        isLoadingMore = true
+        defer { isLoadingMore = false }
         
         do {
             let query = db.collection("videos")
@@ -88,8 +99,6 @@ class VideoFeedViewModel: ObservableObject {
             print("[VideoFeedViewModel] Error fetching more videos: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
-        
-        isLoading = false
     }
     
     // MARK: - Development Helpers
