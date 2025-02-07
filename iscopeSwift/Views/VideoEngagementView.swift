@@ -86,6 +86,7 @@ struct CommentsView: View {
     @ObservedObject var viewModel: EngagementViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var newComment = ""
+    @State private var showError = false
     @FocusState private var isCommentFieldFocused: Bool
     
     var body: some View {
@@ -106,16 +107,23 @@ struct CommentsView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding()
+                    .onAppear {
+                        print("[CommentsView] No comments to display")
+                    }
                 } else {
                     List {
                         ForEach(viewModel.comments) { comment in
                             CommentRowView(comment: comment, viewModel: viewModel)
+                                .onAppear {
+                                    print("[CommentsView] Rendering comment: \(comment.id ?? "unknown") - '\(comment.text)'")
+                                }
                         }
                         
                         if !viewModel.comments.isEmpty {
                             Color.clear
                                 .frame(height: 50)
                                 .onAppear {
+                                    print("[CommentsView] Loading more comments...")
                                     Task {
                                         await viewModel.fetchMoreComments(for: video.id ?? "")
                                     }
@@ -123,6 +131,9 @@ struct CommentsView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .onAppear {
+                        print("[CommentsView] Displaying \(viewModel.comments.count) comments")
+                    }
                 }
                 
                 // Comment input
@@ -134,18 +145,27 @@ struct CommentsView: View {
                             .focused($isCommentFieldFocused)
                         
                         Button {
+                            print("[CommentsView] Attempting to post comment: '\(newComment)'")
                             Task {
                                 let updatedVideo = await viewModel.postComment(on: video.id ?? "", text: newComment, video: video)
-                                video = updatedVideo
-                                newComment = ""
-                                isCommentFieldFocused = false
+                                if viewModel.error == nil {
+                                    print("[CommentsView] Comment posted, updating video with new count: \(updatedVideo.commentCount)")
+                                    video = updatedVideo
+                                    newComment = ""
+                                    isCommentFieldFocused = false
+                                    
+                                    // Verify data persistence
+                                    await viewModel.verifyDataPersistence(for: video.id ?? "")
+                                } else {
+                                    showError = true
+                                }
                             }
                         } label: {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.system(size: 32))
                                 .foregroundColor(newComment.isEmpty ? .secondary : .blue)
                         }
-                        .disabled(newComment.isEmpty)
+                        .disabled(newComment.isEmpty || viewModel.isPostingComment)
                     }
                     .padding()
                 }
@@ -158,6 +178,21 @@ struct CommentsView: View {
                         dismiss()
                     }
                 }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.error ?? "An unknown error occurred")
+            }
+            .onAppear {
+                print("[CommentsView] View appeared")
+                Task {
+                    // Verify data persistence when view appears
+                    await viewModel.verifyDataPersistence(for: video.id ?? "")
+                }
+            }
+            .onDisappear {
+                print("[CommentsView] View disappeared")
             }
         }
     }

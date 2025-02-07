@@ -85,7 +85,11 @@ class EngagementViewModel: ObservableObject {
     // MARK: - Comment Functions
     
     func fetchComments(for videoId: String) async {
-        guard !isLoadingComments else { return }
+        print("[EngagementViewModel] Starting to fetch comments for video: \(videoId)")
+        guard !isLoadingComments else {
+            print("[EngagementViewModel] Already loading comments, skipping fetch")
+            return
+        }
         
         isLoadingComments = true
         defer { isLoadingComments = false }
@@ -96,7 +100,9 @@ class EngagementViewModel: ObservableObject {
                 .order(by: "createdAt", descending: true)
                 .limit(to: commentsPageSize)
             
+            print("[EngagementViewModel] Executing comments query")
             let snapshot = try await query.getDocuments()
+            print("[EngagementViewModel] Got \(snapshot.documents.count) comments from Firestore")
             
             self.comments = snapshot.documents.compactMap { document in
                 let data = document.data()
@@ -113,9 +119,9 @@ class EngagementViewModel: ObservableObject {
             }
             
             self.lastCommentDocument = snapshot.documents.last
-            print("[EngagementViewModel] Fetched \(self.comments.count) comments")
+            print("[EngagementViewModel] ✅ Successfully processed \(self.comments.count) comments")
         } catch {
-            print("[EngagementViewModel] Error fetching comments: \(error)")
+            print("[EngagementViewModel] ❌ Error fetching comments: \(error)")
             self.error = error.localizedDescription
         }
     }
@@ -159,9 +165,24 @@ class EngagementViewModel: ObservableObject {
     }
     
     func postComment(on videoId: String, text: String, video: Video) async -> Video {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let userId = Auth.auth().currentUser?.uid,
-              let userDisplayName = Auth.auth().currentUser?.displayName else { return video }
+        print("[EngagementViewModel] Starting to post comment: '\(text)' for video: \(videoId)")
+        
+        // Check auth state
+        guard let currentUser = Auth.auth().currentUser else {
+            print("[EngagementViewModel] ❌ Failed to post comment: User not authenticated")
+            self.error = "You must be signed in to comment"
+            return video
+        }
+        
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            print("[EngagementViewModel] ❌ Failed to post comment: Empty text")
+            self.error = "Comment cannot be empty"
+            return video
+        }
+        
+        // Get or set display name
+        let userDisplayName = currentUser.displayName ?? "Anonymous"
+        print("[EngagementViewModel] Posting comment as user: \(currentUser.uid), displayName: \(userDisplayName)")
         
         isPostingComment = true
         defer { isPostingComment = false }
@@ -171,17 +192,21 @@ class EngagementViewModel: ObservableObject {
         do {
             let videoRef = db.collection("videos").document(videoId)
             let commentRef = videoRef.collection("comments").document()
+            print("[EngagementViewModel] Created new comment reference: \(commentRef.documentID)")
             
             _ = try await db.runTransaction({ (transaction, errorPointer) -> Any? in
+                print("[EngagementViewModel] Starting transaction for comment creation")
                 let videoDoc: DocumentSnapshot
                 do {
                     videoDoc = try transaction.getDocument(videoRef)
                 } catch {
+                    print("[EngagementViewModel] ❌ Failed to get video document in transaction: \(error)")
                     errorPointer?.pointee = error as NSError
                     return nil
                 }
                 
                 guard let videoData = videoDoc.data() else {
+                    print("[EngagementViewModel] ❌ Video document data is nil")
                     errorPointer?.pointee = NSError(
                         domain: "EngagementViewModel",
                         code: 404,
@@ -191,9 +216,10 @@ class EngagementViewModel: ObservableObject {
                 }
                 
                 let currentCommentCount = videoData["commentCount"] as? Int ?? 0
+                print("[EngagementViewModel] Current comment count: \(currentCommentCount)")
                 
                 let commentData: [String: Any] = [
-                    "userId": userId,
+                    "userId": currentUser.uid,
                     "userDisplayName": userDisplayName,
                     "text": text,
                     "createdAt": FieldValue.serverTimestamp(),
@@ -204,6 +230,7 @@ class EngagementViewModel: ObservableObject {
                 transaction.updateData(["commentCount": currentCommentCount + 1], forDocument: videoRef)
                 
                 updatedVideo.commentCount = currentCommentCount + 1
+                print("[EngagementViewModel] Updated comment count in transaction: \(updatedVideo.commentCount)")
                 return nil
             })
             
@@ -211,7 +238,7 @@ class EngagementViewModel: ObservableObject {
             let newComment = Comment(
                 id: commentRef.documentID,
                 videoId: videoId,
-                userId: userId,
+                userId: currentUser.uid,
                 userDisplayName: userDisplayName,
                 text: text,
                 createdAt: Date(),
@@ -221,9 +248,10 @@ class EngagementViewModel: ObservableObject {
             
             // Insert at the beginning since we're showing newest first
             self.comments.insert(newComment, at: 0)
-            print("[EngagementViewModel] Successfully posted comment. New count: \(updatedVideo.commentCount)")
+            print("[EngagementViewModel] ✅ Successfully added comment to local list. Comments count: \(self.comments.count)")
+            print("[EngagementViewModel] ✅ Successfully posted comment. New count: \(updatedVideo.commentCount)")
         } catch {
-            print("[EngagementViewModel] Error posting comment: \(error)")
+            print("[EngagementViewModel] ❌ Error posting comment: \(error)")
             self.error = error.localizedDescription
         }
         
@@ -251,6 +279,46 @@ class EngagementViewModel: ObservableObject {
         } catch {
             print("[EngagementViewModel] Error deleting comment: \(error)")
             self.error = error.localizedDescription
+        }
+    }
+    
+    // Add a function to verify data persistence
+    func verifyDataPersistence(for videoId: String) async {
+        print("[EngagementViewModel] Verifying data persistence for video: \(videoId)")
+        
+        do {
+            let videoRef = db.collection("videos").document(videoId)
+            let videoDoc = try await videoRef.getDocument()
+            
+            if let videoData = videoDoc.data() {
+                let likeCount = videoData["likeCount"] as? Int ?? 0
+                let commentCount = videoData["commentCount"] as? Int ?? 0
+                print("[EngagementViewModel] ✅ Video data verified:")
+                print("  - Like count: \(likeCount)")
+                print("  - Comment count: \(commentCount)")
+                
+                // Check comments
+                let commentsSnapshot = try await videoRef.collection("comments")
+                    .order(by: "createdAt", descending: true)
+                    .limit(to: 5)
+                    .getDocuments()
+                
+                print("  - Recent comments:")
+                for doc in commentsSnapshot.documents {
+                    let data = doc.data()
+                    print("    • \(data["userDisplayName"] as? String ?? "Anonymous"): \(data["text"] as? String ?? "")")
+                }
+                
+                // Check likes
+                if let userId = Auth.auth().currentUser?.uid {
+                    let likeDoc = try await videoRef.collection("likes").document(userId).getDocument()
+                    print("  - Current user like status: \(likeDoc.exists)")
+                }
+            } else {
+                print("[EngagementViewModel] ❌ Video document not found")
+            }
+        } catch {
+            print("[EngagementViewModel] ❌ Error verifying data: \(error)")
         }
     }
 } 
