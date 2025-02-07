@@ -211,7 +211,7 @@ class VideoFeedViewModel: ObservableObject {
     }
     
     private func createVideoData(_ video: Video) -> [String: Any] {
-        let data: [String: Sendable] = [
+        let data: [String: any Sendable] = [
             "title": video.title,
             "description": video.description,
             "videoUrl": video.videoUrl,

@@ -1,7 +1,9 @@
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
+import AVFoundation
 
+// Import network response types
 @MainActor
 class UploadViewModel: ObservableObject {
     private let db = Firestore.firestore()
@@ -107,10 +109,4 @@ class UploadViewModel: ObservableObject {
         
         isUploading = false
     }
-}
-
-// Response type for pre-signed URL
-struct PresignedUrlResponse: Codable {
-    let uploadURL: String
-    let videoKey: String
 } 
