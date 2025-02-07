@@ -84,6 +84,39 @@ class CommentsViewModel: ObservableObject {
             self.error = error.localizedDescription
         }
     }
+    
+    @MainActor
+    func deleteComment(_ comment: Comment) async {
+        do {
+            let ref = db.collection("videos").document(videoId)
+            let commentRef = ref.collection("comments").document(comment.id)
+            
+            let _ = try await db.runTransaction({ (transaction, errorPointer) -> Any? in
+                // Get the document first - if this fails, it will set the error pointer
+                guard let videoDoc = try? transaction.getDocument(ref),
+                      let currentCount = videoDoc.data()?["commentCount"] as? Int else {
+                    if let errorPointer = errorPointer {
+                        errorPointer.pointee = NSError(
+                            domain: "CommentsViewModel",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Failed to read video document"]
+                        )
+                    }
+                    return nil
+                }
+                
+                // Delete comment and update count
+                transaction.deleteDocument(commentRef)
+                transaction.updateData(["commentCount": max(0, currentCount - 1)], forDocument: ref)
+                return nil
+            })
+            
+            // Remove comment from local state
+            comments.removeAll { $0.id == comment.id }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
 }
 
 struct CommentsView: View {
@@ -104,12 +137,24 @@ struct CommentsView: View {
                 } else {
                     List {
                         ForEach(viewModel.comments) { comment in
-                            VStack(alignment: .leading, spacing: 4) {
+                            HStack {
                                 Text(comment.text)
                                     .font(.body)
-                                Text(comment.createdAt, style: .relative)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                
+                                Spacer()
+                                
+                                // Delete button (only show for comment owner)
+                                if comment.userId == Auth.auth().currentUser?.uid {
+                                    Button(action: {
+                                        Task {
+                                            await viewModel.deleteComment(comment)
+                                        }
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.gray)
+                                            .imageScale(.small)
+                                    }
+                                }
                             }
                             .padding(.vertical, 4)
                         }
