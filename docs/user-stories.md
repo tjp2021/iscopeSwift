@@ -44,7 +44,7 @@ Key:
 
 ### Acceptance Criteria
 
-- [ ] User sees a main feed screen showing a list of videos
+- [x] User sees a main feed screen showing a list of videos
 - [ ] Each video displays basic info (title, creator, thumbnail)
 - [ ] Scrolling loads more videos (pagination)
 - [ ] Tapping a video transitions to a playback screen
@@ -88,7 +88,7 @@ Key:
 
 1. Registration & Authentication (Story 1) - [x]
 
-2. Basic Upload/Feed Flow (Stories 2, 3) - [ ]
+2. Basic Upload/Feed Flow (Stories 2, 3) - [x] Auth redirect & basic feed UI, [ ] Upload flow
 
 3. Engagement Features (Story 4) - [ ]
 

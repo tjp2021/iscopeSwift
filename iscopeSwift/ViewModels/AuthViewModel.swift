@@ -7,20 +7,21 @@ class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var currentUser: User?
     @Published var errorMessage: String?
+    private var handle: AuthStateDidChangeListenerHandle?
     
     init() {
         print("[Auth] Initializing AuthViewModel")
-        // Set up auth state listener
-        Auth.auth().addStateDidChangeListener { [weak self] _, user in
-            if let user = user {
-                print("[Auth] Auth state changed: User authenticated - \(user.uid)")
-                self?.isAuthenticated = true
+        handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            DispatchQueue.main.async {
+                self?.isAuthenticated = user != nil
                 self?.currentUser = user
-            } else {
-                print("[Auth] Auth state changed: User signed out")
-                self?.isAuthenticated = false
-                self?.currentUser = nil
             }
+        }
+    }
+    
+    deinit {
+        if let handle = handle {
+            Auth.auth().removeStateDidChangeListener(handle)
         }
     }
     

@@ -3,39 +3,45 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 56;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		9B1779EC2D55AFD000B55C8B /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9B1779EB2D55AFD000B55C8B /* FirebaseAuth */; };
 		9B1779EE2D55AFD000B55C8B /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9B1779ED2D55AFD000B55C8B /* FirebaseCore */; };
 		9B1779F02D55AFD000B55C8B /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 9B1779EF2D55AFD000B55C8B /* FirebaseFirestore */; };
+		9B1779F12D55AFD000B55C8C /* iscopeSwiftApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1779F22D55AFD000B55C8C /* iscopeSwiftApp.swift */; };
+		9B1779F32D55AFD000B55C8D /* VideoFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1779F42D55AFD000B55C8D /* VideoFeedView.swift */; };
+		9B1779F52D55AFD000B55C8E /* UploadVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1779F62D55AFD000B55C8E /* UploadVideoView.swift */; };
+		9B1779F72D55AFD000B55C8F /* AuthenticationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1779F82D55AFD000B55C8F /* AuthenticationView.swift */; };
+		9B1779F92D55AFD000B55C8G /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1779FA2D55AFD000B55C8G /* RootView.swift */; };
+		9B1779FB2D55AFD000B55C8H /* FirebaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1779FC2D55AFD000B55C8H /* FirebaseConfig.swift */; };
+		9B1779FD2D55AFD000B55C8I /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 9B1779FE2D55AFD000B55C8I /* GoogleService-Info.plist */; };
+		9B62A24F2D55CFF800844213 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A24D2D55CFF800844213 /* Video.swift */; };
+		9B62A2522D55D00500844213 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9B62A2502D55D00500844213 /* Preview Assets.xcassets */; };
+		9B62A2572D55D01000844213 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2532D55D01000844213 /* AuthViewModel.swift */; };
+		9B62A2582D55D01000844213 /* VideoFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2552D55D01000844213 /* VideoFeedViewModel.swift */; };
+		9B62A2592D55D01000844213 /* UploadViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B62A2542D55D01000844213 /* UploadViewModel.swift */; };
+		9B62A25B2D55D0B200844213 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9B62A25A2D55D0B200844213 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		9B1779CA2D55AC4900B55C8B /* iscopeSwift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iscopeSwift.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9B1779CB2D55AC4900B55C8C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9B1779F22D55AFD000B55C8C /* iscopeSwiftApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iscopeSwiftApp.swift; sourceTree = "<group>"; };
+		9B1779F42D55AFD000B55C8D /* VideoFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFeedView.swift; sourceTree = "<group>"; };
+		9B1779F62D55AFD000B55C8E /* UploadVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadVideoView.swift; sourceTree = "<group>"; };
+		9B1779F82D55AFD000B55C8F /* AuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationView.swift; sourceTree = "<group>"; };
+		9B1779FA2D55AFD000B55C8G /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		9B1779FC2D55AFD000B55C8H /* FirebaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseConfig.swift; sourceTree = "<group>"; };
+		9B1779FE2D55AFD000B55C8I /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		9B62A24D2D55CFF800844213 /* Video.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
+		9B62A2502D55D00500844213 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		9B62A2532D55D01000844213 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		9B62A2542D55D01000844213 /* UploadViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadViewModel.swift; sourceTree = "<group>"; };
+		9B62A2552D55D01000844213 /* VideoFeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFeedViewModel.swift; sourceTree = "<group>"; };
+		9B62A25A2D55D0B200844213 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		9B1779F12D55B59A00B55C8B /* Exceptions for "iscopeSwift" folder in "iscopeSwift" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 9B1779C92D55AC4900B55C8B /* iscopeSwift */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		9B1779CC2D55AC4900B55C8B /* iscopeSwift */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				9B1779F12D55B59A00B55C8B /* Exceptions for "iscopeSwift" folder in "iscopeSwift" target */,
-			);
-			path = iscopeSwift;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		9B1779C72D55AC4900B55C8B /* Frameworks */ = {
@@ -67,6 +73,59 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		9B1779CC2D55AC4900B55C8B /* iscopeSwift */ = {
+			isa = PBXGroup;
+			children = (
+				9B62A25A2D55D0B200844213 /* Assets.xcassets */,
+				9B62A2562D55D01000844213 /* ViewModels */,
+				9B62A2512D55D00500844213 /* Preview Content */,
+				9B62A24E2D55CFF800844213 /* Models */,
+				9B1779F22D55AFD000B55C8C /* iscopeSwiftApp.swift */,
+				9B1779FC2D55AFD000B55C8H /* FirebaseConfig.swift */,
+				9B1779FF2D55AFD000B55C8J /* Views */,
+				9B1779CB2D55AC4900B55C8C /* Info.plist */,
+				9B1779FE2D55AFD000B55C8I /* GoogleService-Info.plist */,
+			);
+			path = iscopeSwift;
+			sourceTree = "<group>";
+		};
+		9B1779FF2D55AFD000B55C8J /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				9B1779F42D55AFD000B55C8D /* VideoFeedView.swift */,
+				9B1779F62D55AFD000B55C8E /* UploadVideoView.swift */,
+				9B1779F82D55AFD000B55C8F /* AuthenticationView.swift */,
+				9B1779FA2D55AFD000B55C8G /* RootView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		9B62A24E2D55CFF800844213 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				9B62A24D2D55CFF800844213 /* Video.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		9B62A2512D55D00500844213 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				9B62A2502D55D00500844213 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		9B62A2562D55D01000844213 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				9B62A2532D55D01000844213 /* AuthViewModel.swift */,
+				9B62A2542D55D01000844213 /* UploadViewModel.swift */,
+				9B62A2552D55D01000844213 /* VideoFeedViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -81,9 +140,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				9B1779CC2D55AC4900B55C8B /* iscopeSwift */,
 			);
 			name = iscopeSwift;
 			packageProductDependencies = (
@@ -111,6 +167,7 @@
 				};
 			};
 			buildConfigurationList = 9B1779C52D55AC4900B55C8B /* Build configuration list for PBXProject "iscopeSwift" */;
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -118,11 +175,9 @@
 				Base,
 			);
 			mainGroup = 9B1779C12D55AC4900B55C8B;
-			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9B1779EA2D55AFD000B55C8B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = 9B1779CB2D55AC4900B55C8B /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -137,6 +192,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9B62A2522D55D00500844213 /* Preview Assets.xcassets in Resources */,
+				9B62A25B2D55D0B200844213 /* Assets.xcassets in Resources */,
+				9B1779FD2D55AFD000B55C8I /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -147,6 +205,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9B1779F12D55AFD000B55C8C /* iscopeSwiftApp.swift in Sources */,
+				9B1779F32D55AFD000B55C8D /* VideoFeedView.swift in Sources */,
+				9B1779F52D55AFD000B55C8E /* UploadVideoView.swift in Sources */,
+				9B1779F72D55AFD000B55C8F /* AuthenticationView.swift in Sources */,
+				9B1779F92D55AFD000B55C8G /* RootView.swift in Sources */,
+				9B62A24F2D55CFF800844213 /* Video.swift in Sources */,
+				9B1779FB2D55AFD000B55C8H /* FirebaseConfig.swift in Sources */,
+				9B62A2572D55D01000844213 /* AuthViewModel.swift in Sources */,
+				9B62A2582D55D01000844213 /* VideoFeedViewModel.swift in Sources */,
+				9B62A2592D55D01000844213 /* UploadViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -205,7 +273,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -262,7 +330,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -283,7 +351,8 @@
 				DEVELOPMENT_ASSET_PATHS = "\"iscopeSwift/Preview Content\"";
 				DEVELOPMENT_TEAM = A5L4GKKZF5;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = iscopeSwift/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -314,7 +383,8 @@
 				DEVELOPMENT_ASSET_PATHS = "\"iscopeSwift/Preview Content\"";
 				DEVELOPMENT_TEAM = A5L4GKKZF5;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = iscopeSwift/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

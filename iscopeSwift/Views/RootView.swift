@@ -14,8 +14,8 @@ struct RootView: View {
                     .onAppear { print("[Navigation] Showing AuthenticationView - User is not authenticated") }
             }
         }
-        .onChange(of: authViewModel.isAuthenticated) { newValue in
-            print("[Navigation] Authentication state changed to: \(newValue ? "authenticated" : "not authenticated")")
+        .onChange(of: authViewModel.isAuthenticated) { oldValue, newValue in
+            // Handle auth state changes if needed
         }
     }
 }
