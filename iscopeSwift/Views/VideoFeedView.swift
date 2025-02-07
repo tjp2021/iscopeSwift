@@ -11,54 +11,114 @@ struct VideoFeedView: View {
     @State private var currentIndex = 0
     
     var body: some View {
-        TabView(selection: $currentIndex) {
-            ForEach(viewModel.videos) { video in
-                VideoPageView(video: video)
-                    .tag(video.id as String?)
-                    .ignoresSafeArea()
-            }
-        }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .ignoresSafeArea()
-        .background(Color.black)
-        .environment(\.layoutDirection, .rightToLeft)
-        .overlay(alignment: .topTrailing) {
-            VStack {
-                Button(action: {
-                    Task {
-                        do {
-                            try authViewModel.signOut()
-                        } catch {
-                            viewModel.error = error.localizedDescription
-                            showError = true
+        GeometryReader { geometry in
+            ZStack {
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(viewModel.videos) { video in
+                            VideoPageView(video: video)
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .id(video.id)
                         }
                     }
-                }) {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                        .foregroundColor(.white)
-                        .padding()
                 }
+                .scrollTargetBehavior(.paging)
+                .background(Color.black)
                 
-                Button {
-                    showingUploadSheet = true
-                } label: {
-                    Image(systemName: "plus")
-                        .foregroundColor(.white)
-                        .padding()
+                // Bottom toolbar with buttons
+                VStack {
+                    Spacer()
+                    HStack(spacing: 30) {
+                        Button(action: {
+                            Task {
+                                do {
+                                    try authViewModel.signOut()
+                                } catch {
+                                    viewModel.error = error.localizedDescription
+                                    showError = true
+                                }
+                            }
+                        }) {
+                            VStack {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 24))
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.black.opacity(0.5))
+                                    .clipShape(Circle())
+                                Text("Sign Out")
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+                            }
+                        }
+                        
+                        Button {
+                            showingUploadSheet = true
+                        } label: {
+                            VStack {
+                                Image(systemName: "plus")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 24))
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.black.opacity(0.5))
+                                    .clipShape(Circle())
+                                Text("Upload")
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+                            }
+                        }
+                        
+                        #if DEBUG
+                        Button {
+                            Task {
+                                print("[VideoFeedView] Generating test data")
+                                await viewModel.seedTestData()
+                            }
+                        } label: {
+                            VStack {
+                                Image(systemName: "doc.badge.plus")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 24))
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.black.opacity(0.5))
+                                    .clipShape(Circle())
+                                Text("Test Data")
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+                            }
+                        }
+                        #endif
+                    }
+                    .padding(.bottom, geometry.safeAreaInsets.bottom + 20)
+                    .padding(.horizontal)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [.clear, .black.opacity(0.5)]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                 }
             }
-            .padding(.top, 50)
         }
+        .ignoresSafeArea()
         .sheet(isPresented: $showingUploadSheet) {
             UploadVideoView()
         }
         .task {
+            print("[VideoFeedView] Task started - Fetching videos")
             await viewModel.fetchVideos()
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(viewModel.error ?? "An unknown error occurred")
+        }
+        .onAppear {
+            print("[VideoFeedView] View appeared")
+        }
+        .onDisappear {
+            print("[VideoFeedView] View disappeared")
         }
     }
 }
@@ -71,10 +131,20 @@ class VideoPlayerManager: NSObject, ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     func setupPlayer(for url: URL) -> AVPlayer {
+        print("[VideoPlayer] Setting up player for URL: \(url)")
         cleanup()
         
         let playerItem = AVPlayerItem(url: url)
+        playerItem.automaticallyPreservesTimeOffsetFromLive = true
         let newPlayer = AVPlayer(playerItem: playerItem)
+        
+        // Enable background audio
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            print("[VideoPlayer] Audio session setup successful")
+        } catch {
+            print("[VideoPlayer] Audio session setup failed: \(error)")
+        }
         
         playerItem.addObserver(
             self,
@@ -82,12 +152,14 @@ class VideoPlayerManager: NSObject, ObservableObject {
             options: [.old, .new],
             context: &playerItemContext
         )
+        print("[VideoPlayer] Added status observer")
         
         NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: playerItem,
             queue: .main
         ) { [weak self] _ in
+            print("[VideoPlayer] Video reached end, looping")
             newPlayer.seek(to: .zero)
             newPlayer.play()
         }
@@ -113,14 +185,20 @@ class VideoPlayerManager: NSObject, ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 switch status {
                 case .readyToPlay:
+                    print("[VideoPlayer] Status: Ready to play")
                     self?.isLoading = false
                     self?.player?.play()
                 case .failed:
+                    print("[VideoPlayer] Status: Failed to play")
+                    if let error = self?.player?.currentItem?.error {
+                        print("[VideoPlayer] Error: \(error)")
+                    }
                     self?.isLoading = false
-                    print("Player item failed with error: \(String(describing: self?.player?.currentItem?.error))")
                 case .unknown:
+                    print("[VideoPlayer] Status: Unknown")
                     self?.isLoading = true
                 @unknown default:
+                    print("[VideoPlayer] Status: Unknown default case")
                     self?.isLoading = false
                 }
             }
@@ -128,15 +206,18 @@ class VideoPlayerManager: NSObject, ObservableObject {
     }
     
     func cleanup() {
+        print("[VideoPlayer] Cleaning up resources")
         if let player = player, let playerItem = player.currentItem {
             player.pause()
             playerItem.removeObserver(self, forKeyPath: #keyPath(AVPlayerItem.status))
             NotificationCenter.default.removeObserver(self)
         }
         player = nil
+        isLoading = true
     }
     
     deinit {
+        print("[VideoPlayer] Manager being deallocated")
         cleanup()
     }
 }
@@ -147,51 +228,61 @@ struct VideoPageView: View {
     @State private var player: AVPlayer?
     
     var body: some View {
-        ZStack {
-            if let player = player {
-                CustomVideoPlayer(player: player)
-                    .ignoresSafeArea()
-                    .overlay(
-                        VStack {
-                            Spacer()
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(video.title)
-                                    .font(.title3)
-                                    .bold()
-                                    .foregroundColor(.white)
-                                Text(video.description)
-                                    .font(.subheadline)
-                                    .foregroundColor(.white.opacity(0.8))
-                            }
-                            .padding()
-                            .background(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
-                                    startPoint: .top,
-                                    endPoint: .bottom
+        GeometryReader { geometry in
+            ZStack {
+                if let player = player {
+                    CustomVideoPlayer(player: player)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .edgesIgnoringSafeArea(.all)
+                        .overlay(
+                            VStack {
+                                Spacer()
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(video.title)
+                                        .font(.title3)
+                                        .bold()
+                                        .foregroundColor(.white)
+                                    Text(video.description)
+                                        .font(.subheadline)
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .padding()
+                                .background(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
                                 )
-                            )
-                        }
-                    )
-            }
-            
-            if playerManager.isLoading {
-                ProgressView()
-                    .tint(.white)
+                            }
+                        )
+                }
+                
+                if playerManager.isLoading {
+                    ProgressView()
+                        .tint(.white)
+                }
             }
         }
         .onAppear {
+            print("[VideoPageView] View appeared for video: \(video.title)")
             setupVideo()
         }
         .onDisappear {
+            print("[VideoPageView] View disappeared for video: \(video.title)")
             playerManager.cleanup()
             player = nil
         }
     }
     
     private func setupVideo() {
-        guard let url = URL(string: video.videoUrl) else { return }
+        guard let url = URL(string: video.videoUrl) else {
+            print("[VideoPageView] Invalid URL for video: \(video.title)")
+            return
+        }
+        print("[VideoPageView] Setting up video with URL: \(url)")
         player = playerManager.setupPlayer(for: url)
+        player?.play()
     }
 }
 
@@ -200,15 +291,20 @@ struct CustomVideoPlayer: UIViewControllerRepresentable {
     let player: AVPlayer
     
     func makeUIViewController(context: Context) -> AVPlayerViewController {
+        print("[CustomVideoPlayer] Creating AVPlayerViewController")
         let controller = AVPlayerViewController()
         controller.player = player
         controller.showsPlaybackControls = false
         controller.videoGravity = .resizeAspectFill
+        controller.allowsPictureInPicturePlayback = true
+        player.play()
         return controller
     }
     
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
+        print("[CustomVideoPlayer] Updating AVPlayerViewController")
         uiViewController.player = player
+        player.play()
     }
 }
 

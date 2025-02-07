@@ -4,23 +4,88 @@ import FirebaseFirestore
 @MainActor
 class VideoFeedViewModel: ObservableObject {
     @Published var videos: [Video] = []
-    @Published var isLoading = false
     @Published var error: String?
+    private var lastDocument: DocumentSnapshot?
+    private var isLoading = false
+    private let pageSize = 5
     private let db = Firestore.firestore()
     
     func fetchVideos() async {
+        print("[VideoFeedViewModel] Starting to fetch videos")
+        guard !isLoading else {
+            print("[VideoFeedViewModel] Fetch already in progress")
+            return
+        }
         isLoading = true
-        error = nil
         
         do {
-            let snapshot = try await db.collection("videos")
-                .order(by: "created_at", descending: true)
-                .getDocuments()
+            let query = db.collection("videos")
+                .order(by: "createdAt", descending: true)
+                .limit(to: pageSize)
             
-            videos = snapshot.documents.compactMap { document in
-                try? document.data(as: Video.self)
+            print("[VideoFeedViewModel] Executing Firestore query")
+            let snapshot = try await query.getDocuments()
+            print("[VideoFeedViewModel] Got \(snapshot.documents.count) videos")
+            
+            self.videos = snapshot.documents.compactMap { document in
+                let data = document.data()
+                return Video(
+                    id: document.documentID,
+                    title: data["title"] as? String ?? "",
+                    description: data["description"] as? String ?? "",
+                    videoUrl: data["videoUrl"] as? String ?? "",
+                    creatorId: data["creatorId"] as? String ?? "",
+                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+                )
             }
+            
+            self.lastDocument = snapshot.documents.last
+            self.error = nil
+            print("[VideoFeedViewModel] Successfully processed videos")
         } catch {
+            print("[VideoFeedViewModel] Error fetching videos: \(error.localizedDescription)")
+            self.error = error.localizedDescription
+        }
+        
+        isLoading = false
+    }
+    
+    func fetchMoreVideos() async {
+        print("[VideoFeedViewModel] Starting to fetch more videos")
+        guard !isLoading, let lastDocument = lastDocument else {
+            print("[VideoFeedViewModel] Cannot fetch more: isLoading=\(isLoading), lastDocument=\(lastDocument != nil)")
+            return
+        }
+        isLoading = true
+        
+        do {
+            let query = db.collection("videos")
+                .order(by: "createdAt", descending: true)
+                .limit(to: pageSize)
+                .start(afterDocument: lastDocument)
+            
+            print("[VideoFeedViewModel] Executing pagination query")
+            let snapshot = try await query.getDocuments()
+            print("[VideoFeedViewModel] Got \(snapshot.documents.count) additional videos")
+            
+            let newVideos = snapshot.documents.compactMap { document in
+                let data = document.data()
+                return Video(
+                    id: document.documentID,
+                    title: data["title"] as? String ?? "",
+                    description: data["description"] as? String ?? "",
+                    videoUrl: data["videoUrl"] as? String ?? "",
+                    creatorId: data["creatorId"] as? String ?? "",
+                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+                )
+            }
+            
+            self.videos.append(contentsOf: newVideos)
+            self.lastDocument = snapshot.documents.last
+            self.error = nil
+            print("[VideoFeedViewModel] Successfully processed additional videos")
+        } catch {
+            print("[VideoFeedViewModel] Error fetching more videos: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
         
@@ -31,6 +96,7 @@ class VideoFeedViewModel: ObservableObject {
     
     #if DEBUG
     func seedTestData() async {
+        print("[VideoFeedViewModel] Starting to seed test data")
         let testVideos = [
             Video(
                 id: UUID().uuidString,
@@ -61,18 +127,17 @@ class VideoFeedViewModel: ObservableObject {
         do {
             for video in testVideos {
                 try await db.collection("videos").document(video.id!).setData([
-                    "id": video.id!,
                     "title": video.title,
                     "description": video.description,
-                    "video_url": video.videoUrl,
-                    "creator_id": video.creatorId,
-                    "created_at": video.createdAt
+                    "videoUrl": video.videoUrl,
+                    "creatorId": video.creatorId,
+                    "createdAt": video.createdAt
                 ])
             }
-            print("✅ Test data seeded successfully")
+            print("[VideoFeedViewModel] ✅ Test data seeded successfully")
             await fetchVideos()
         } catch {
-            print("❌ Error seeding test data: \(error.localizedDescription)")
+            print("[VideoFeedViewModel] ❌ Error seeding test data: \(error.localizedDescription)")
         }
     }
     #endif
