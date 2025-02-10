@@ -1,91 +1,129 @@
-const express = require('express');
-const AWS = require('aws-sdk');
-const cors = require('cors');
-require('dotenv').config();
+import http from 'http';
 
-// Debug log to check credentials
-console.log('Using AWS Key:', process.env.AWS_ACCESS_KEY_ID);
+// Add debug logging
+const debug = (...args) => console.log('[DEBUG]', ...args);
+debug('Starting server initialization...');
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+// Create a basic HTTP server
+const server = http.createServer((req, res) => {
+    debug('Received request:', {
+        method: req.method,
+        url: req.url,
+        headers: req.headers
+    });
 
-const s3 = new AWS.S3({
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    region: 'us-east-2'
-});
+    // Add CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-app.post('/generate-presigned-url', async (req, res) => {
-    try {
-        console.log('\n🔵 [REQUEST START] -------------------------');
-        console.log('📥 Received request body:', JSON.stringify(req.body, null, 2));
-        
-        const { fileName, contentType, isProfile } = req.body;
-        
-        if (!fileName) {
-            console.log('❌ Error: fileName is required');
-            throw new Error('fileName is required');
-        }
-        
-        // Set proper defaults based on type
-        const finalContentType = contentType || (isProfile ? 'image/jpeg' : 'video/mp4');
-        console.log('📝 Content Type:', finalContentType);
-        
-        // Generate the key based on type
-        const key = isProfile 
-            ? `profiles/${fileName}`
-            : `videos/${Date.now()}-${fileName}`;
-            
-        console.log('🔑 Generated key:', key);
-        
-        // Only use supported parameters
-        const params = {
-            Bucket: 'iscope',
-            Key: key,
-            Expires: 300,
-            ContentType: finalContentType
-        };
-        
-        console.log('📦 S3 Parameters:', JSON.stringify(params, null, 2));
-
-        // Get the signed URL
-        const uploadURL = await s3.getSignedUrlPromise('putObject', params);
-        console.log('🔗 Generated pre-signed URL:', uploadURL);
-        
-        // Parse the URL to show query parameters
-        const urlObj = new URL(uploadURL);
-        console.log('🔍 URL Query Parameters:');
-        for (const [key, value] of urlObj.searchParams.entries()) {
-            console.log(`   ${key}: ${value}`);
-        }
-        
-        const response = {
-            uploadURL,
-            key: params.Key,
-            ...(isProfile ? { imageKey: params.Key } : { videoKey: params.Key })
-        };
-        
-        console.log('📤 Sending response:', JSON.stringify(response, null, 2));
-        console.log('🔵 [REQUEST END] ---------------------------\n');
-        
-        res.json(response);
-        
-    } catch (error) {
-        console.log('❌ [ERROR] ---------------------------------');
-        console.log('Error details:', {
-            message: error.message,
-            code: error.code,
-            time: error.time,
-            stack: error.stack
-        });
-        console.log('❌ [ERROR END] -----------------------------\n');
-        
-        res.status(500).json({ error: error.message });
+    // Handle OPTIONS request for CORS preflight
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
     }
+
+    // Handle test transcription endpoint
+    if (req.method === 'POST' && req.url === '/test-transcription') {
+        debug('Handling test transcription request');
+        
+        // Send a mock response matching the expected WhisperResponse format
+        const mockResponse = {
+            jobId: "test-123",
+            status: "completed",
+            transcriptUrl: "https://example.com/test-transcript.txt",
+            text: "This is a test transcription response."
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(mockResponse));
+        return;
+    }
+
+    console.log('Got a request:', req.method, req.url);
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Hello World\n');
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-}); 
+const port = 3000;  // Changed to match Swift app's expected port
+
+// Add detailed error handling
+server.on('error', (err) => {
+    console.error('Server error:', err);
+    debug('Error details:', {
+        code: err.code,
+        message: err.message,
+        stack: err.stack
+    });
+    if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${port} is already in use`);
+    }
+    // Exit on critical errors
+    process.exit(1);
+});
+
+// More detailed error handling
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught exception:', err);
+    debug('Exception details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+    });
+    // Exit on uncaught exceptions
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled rejection:', err);
+    debug('Rejection details:', {
+        name: err?.name,
+        message: err?.message,
+        stack: err?.stack
+    });
+    // Exit on unhandled rejections
+    process.exit(1);
+});
+
+// Add more process event handlers
+process.on('SIGTERM', () => {
+    debug('Received SIGTERM signal');
+    console.log('Shutting down gracefully...');
+    server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', () => {
+    debug('Received SIGINT signal');
+    console.log('Shutting down gracefully...');
+    server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+    });
+});
+
+// Try to start the server - bind to all interfaces
+try {
+    debug('Attempting to start server...');
+    server.listen(port, '0.0.0.0', () => {
+        const addr = server.address();
+        debug('Server address details:', addr);
+        console.log(`Server running and bound to all interfaces on port ${port}`);
+        console.log('Try accessing via:');
+        console.log(`  http://localhost:${port}`);
+        console.log(`  http://127.0.0.1:${port}`);
+        console.log(`  http://0.0.0.0:${port}`);
+        console.log('Process ID:', process.pid);
+    });
+} catch (err) {
+    console.error('Failed to start server:', err);
+    debug('Startup error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+    });
+    process.exit(1);
+} 

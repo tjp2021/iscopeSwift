@@ -71,6 +71,12 @@ struct SettingsProfileView: View {
                     } label: {
                         Label("Generate Test Data", systemImage: "doc.badge.plus")
                     }
+                    
+                    NavigationLink {
+                        TranscriptionTestView()
+                    } label: {
+                        Label("Test Transcription", systemImage: "waveform")
+                    }
                     #endif
                     
                     Button(role: .destructive) {
