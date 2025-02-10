@@ -16,7 +16,8 @@ Key:
 3. Video Feed
 4. Basic Engagement (Likes & Comments)
 5. Creator Dashboard Video Display
-6. Video Player Features
+6. Profile Management
+7. Video Player Features
    - [x] Auto-play/pause
    - [x] Mute control
    - [x] Error handling
@@ -33,10 +34,12 @@ Key:
    - [x] Real-time stat updates
    - [ ] Edit video metadata
    
-2. Performance Optimizations (~60%)
+2. Performance Optimizations (~70%)
    - [x] Lazy loading implementation
    - [x] Proper cleanup routines
    - [x] Basic error handling
+   - [x] Image optimization and processing
+   - [x] S3 upload optimization
    - [~] Video preloading
    - [ ] Advanced caching
    - [ ] Bandwidth optimization
@@ -64,12 +67,34 @@ Key:
   - [x] Handle profile updates
 
 **Implementation Details**:
-- Using Firebase Web SDK for authentication
+- Using Firebase Auth for authentication
 - Proper error handling and logging implemented
 - Atomic operations for user creation
 - Persistence between sessions configured
+- Real-time profile updates
 
-## 2. Video Upload (Creator Flow)
+## 2. Profile Management
+
+**User Story**: As a user, I want to manage my profile information and appearance on the platform.
+
+### Acceptance Criteria
+
+- [x] User can upload and update profile picture
+- [x] Profile image is optimized and processed
+- [x] Profile data is stored securely in S3 and Firestore
+- [x] User can change their password
+- [x] User can update their email
+- [x] Profile changes are reflected in real-time
+- [x] Profile data persists between sessions
+
+**Implementation Details**:
+- S3 integration for profile image storage
+- Image optimization and processing
+- Real-time profile updates using shared ViewModel
+- Secure password change with reauthentication
+- Proper error handling and validation
+
+## 3. Video Upload (Creator Flow)
 
 **User Story**: As a creator, I want to upload a short-form video with a title/description, so that I can share my content with the community.
 
@@ -82,12 +107,13 @@ Key:
 - [x] User sees an upload confirmation or progress indicator
 
 **Implementation Details**:
-- Direct upload to Firebase Storage
+- Direct upload to S3 with pre-signed URLs
 - Metadata stored in Firestore
 - Progress tracking implemented
 - Error handling for failed uploads
+- Video preview before upload
 
-## 3. Viewing the Video Feed
+## 4. Viewing the Video Feed
 
 **User Story**: As a user, I want to browse a feed of recently or popular uploaded videos, so that I can discover new content and creators.
 
@@ -114,7 +140,7 @@ Key:
 - Background playback support
 - Automatic video looping
 
-## 4. Engagement: Likes & Comments
+## 5. Engagement: Likes & Comments
 
 **User Story**: As a user, I want to like and comment on videos, so that I can engage with creators and the community.
 
@@ -139,7 +165,7 @@ Key:
 - Animated like button feedback
 - Proper cleanup on view dismissal
 
-## 5. Creator Dashboard (My Videos & Basic Stats)
+## 6. Creator Dashboard (My Videos & Basic Stats)
 
 **User Story**: As a creator, I want to view my uploaded videos and see their engagement stats, so I can measure my content's performance.
 
@@ -162,7 +188,7 @@ Key:
 - Memory-efficient video playback
 - Missing: Edit functionality
 
-## 6. Content Reporting (Moderation)
+## 7. Content Reporting (Moderation)
 
 **User Story**: As a user, I want to report inappropriate or offensive videos, so that I can help maintain a safe environment on the platform.
 
@@ -180,6 +206,8 @@ Key:
 1. Performance Optimization
    - [~] Video preloading optimization
    - [x] Memory management improvements
+   - [x] Image optimization and processing
+   - [x] S3 upload optimization
    - [ ] Network bandwidth optimization
    - [ ] Advanced caching strategy implementation
 
@@ -202,19 +230,20 @@ Key:
    - Creator insights
 
 3. Social Features
-   - User profiles
    - Following system
    - Activity feed
+   - Enhanced sharing capabilities
 
 ## Implementation Notes
 
 ### Priority Order
 
 1. Registration & Authentication (Story 1) - [x] COMPLETED
-2. Basic Upload/Feed Flow (Stories 2, 3) - [x] COMPLETED
-3. Engagement Features (Story 4) - [x] COMPLETED
-4. Creator Tools (Story 5) - [ ] IN PROGRESS
-5. Moderation Tools (Story 6) - [ ] NOT STARTED
+2. Profile Management (Story 2) - [x] COMPLETED
+3. Basic Upload/Feed Flow (Stories 3, 4) - [x] COMPLETED
+4. Engagement Features (Story 5) - [x] COMPLETED
+5. Creator Tools (Story 6) - [~] IN PROGRESS
+6. Moderation Tools (Story 7) - [ ] NOT STARTED
 
 ### Current Focus Areas
 1. Completing Creator Dashboard
@@ -227,6 +256,7 @@ Key:
    - [~] Video preloading improvements
    - [x] Memory management
    - [~] Network request optimization
+   - [x] Image optimization
 
 ### Future Enhancements
 
@@ -254,4 +284,7 @@ Key:
 4. Missing offline support
 5. Picture-in-Picture needs enhancement
 6. Share functionality not implemented
-7. Analytics tracking needed 
+7. Analytics tracking needed
+8. Profile image caching strategy needed
+9. Better error handling for S3 uploads
+10. Offline support for profile data 
