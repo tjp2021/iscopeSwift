@@ -78,6 +78,40 @@ class TranscriptionViewModel: ObservableObject {
             throw error
         }
     }
+    
+    /// Tests transcription with a real video from S3
+    func testRealTranscription(videoUrl: String) async throws {
+        isTranscribing = true
+        transcriptionStatus = "Starting real transcription..."
+        
+        defer { isTranscribing = false }
+        
+        do {
+            let url = URL(string: "\(serverUrl)/start-transcription")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let body = ["videoUrl": videoUrl, "languageCode": "en"]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                throw URLError(.badServerResponse)
+            }
+            
+            let result = try JSONDecoder().decode(WhisperResponse.self, from: data)
+            transcriptionStatus = "Real transcription completed!"
+            transcriptionText = result.text
+            
+        } catch {
+            self.error = error
+            transcriptionStatus = "Real transcription failed"
+            throw error
+        }
+    }
 }
 
 /// Response model for transcription requests

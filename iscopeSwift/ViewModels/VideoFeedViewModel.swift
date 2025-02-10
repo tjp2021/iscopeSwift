@@ -232,9 +232,9 @@ class VideoFeedViewModel: ObservableObject {
         let testVideos = [
             Video(
                 id: UUID().uuidString,
-                title: "Sunset at the Beach",
-                description: "Beautiful sunset captured at Malibu Beach. The waves were perfect and the colors were amazing!",
-                videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+                title: "News Report Sample",
+                description: "Short news clip with clear speech for testing transcription",
+                videoUrl: "https://storage.googleapis.com/aai-web-samples/news.mp4",
                 creatorId: "test_user",
                 createdAt: Date(),
                 likeCount: 0,
@@ -245,22 +245,10 @@ class VideoFeedViewModel: ObservableObject {
             Video(
                 id: UUID().uuidString,
                 title: "Mountain Hiking",
-                description: "Epic hike through the mountains. The views were breathtaking and the weather was perfect for hiking.",
+                description: "Epic hike through the mountains. The views were breathtaking!",
                 videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
                 creatorId: "test_user",
                 createdAt: Date().addingTimeInterval(-86400),
-                likeCount: 0,
-                commentCount: 0,
-                isLiked: false,
-                viewCount: 0
-            ),
-            Video(
-                id: UUID().uuidString,
-                title: "City Timelapse",
-                description: "24-hour timelapse of the city skyline. Watch as the city comes alive at night!",
-                videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-                creatorId: "test_user",
-                createdAt: Date().addingTimeInterval(-172800),
                 likeCount: 0,
                 commentCount: 0,
                 isLiked: false,
