@@ -1,5 +1,6 @@
 import Foundation
 
+/// ViewModel responsible for handling video transcription functionality
 @MainActor
 class TranscriptionViewModel: ObservableObject {
     @Published var isTranscribing = false
@@ -9,12 +10,12 @@ class TranscriptionViewModel: ObservableObject {
     
     private let serverUrl = "http://localhost:3000"
     
-    // Test function to try transcription
+    /// Tests the transcription service with a mock request
+    /// This function is used to verify the connection and response handling
     func testTranscription() async throws {
         isTranscribing = true
         transcriptionStatus = "Starting test transcription..."
         
-        // Use defer to ensure isTranscribing is set to false when function exits
         defer { isTranscribing = false }
         
         do {
@@ -41,12 +42,14 @@ class TranscriptionViewModel: ObservableObject {
         }
     }
     
-    // Start transcription for a video
+    /// Starts the transcription process for a video
+    /// - Parameters:
+    ///   - videoUrl: The URL of the video to transcribe
+    ///   - languageCode: The language code for transcription (default: "en")
     func startTranscription(videoUrl: String, languageCode: String = "en") async throws {
         isTranscribing = true
         transcriptionStatus = "Starting transcription..."
         
-        // Use defer to ensure isTranscribing is set to false when function exits
         defer { isTranscribing = false }
         
         do {
@@ -77,10 +80,14 @@ class TranscriptionViewModel: ObservableObject {
     }
 }
 
-// Response models
+/// Response model for transcription requests
 struct WhisperResponse: Codable {
+    /// Unique identifier for the transcription job
     let jobId: String
+    /// Current status of the transcription (e.g., "completed")
     let status: String
+    /// URL where the full transcript can be downloaded
     let transcriptUrl: String
+    /// The transcribed text content
     let text: String
 } 
