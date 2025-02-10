@@ -4,7 +4,9 @@ import AVKit
 
 struct UploadVideoView: View {
     @StateObject private var viewModel = UploadViewModel()
+    @StateObject private var transcriptionViewModel = TranscriptionViewModel()
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var feedViewModel: VideoFeedViewModel
     
     @State private var title = ""
     @State private var description = ""
@@ -13,6 +15,7 @@ struct UploadVideoView: View {
     @State private var alertMessage = ""
     @State private var isShowingPreview = false
     @State private var previewURL: URL? = nil
+    @State private var currentVideoId: String? = nil
     
     var body: some View {
         NavigationView {
@@ -46,6 +49,12 @@ struct UploadVideoView: View {
                         ProgressView("Uploading...", value: viewModel.uploadProgress, total: 1.0)
                     }
                 }
+                
+                if let videoId = currentVideoId, transcriptionViewModel.isTranscribing {
+                    Section {
+                        TranscriptionProgressView(viewModel: transcriptionViewModel, videoId: videoId)
+                    }
+                }
             }
             .navigationTitle("Upload Video")
             .toolbar {
@@ -66,7 +75,7 @@ struct UploadVideoView: View {
             }
             .alert("Upload Status", isPresented: $showAlert) {
                 Button("OK") {
-                    if !alertMessage.contains("Error") {
+                    if !alertMessage.contains("Error") && !transcriptionViewModel.isTranscribing {
                         dismiss()
                     }
                 }
@@ -96,8 +105,9 @@ struct UploadVideoView: View {
                     self.previewURL = tempURL
                 }
             } catch {
+                print("Preview error: \(error.localizedDescription)")
                 await MainActor.run {
-                    alertMessage = "Error loading video: \(error.localizedDescription)"
+                    alertMessage = "Error loading video preview: \(error.localizedDescription)"
                     showAlert = true
                 }
             }
@@ -108,15 +118,25 @@ struct UploadVideoView: View {
         guard let item = selectedItem else { return }
         
         do {
-            guard let data = try await item.loadTransferable(type: Data.self) else {
-                throw NSError(domain: "VideoLoad", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not load video data"])
+            let (videoUrl, videoId) = try await viewModel.uploadVideo(item: item, title: title, description: description)
+            
+            // Store the videoId for transcription progress
+            currentVideoId = videoId
+            
+            // Start transcription process
+            Task {
+                do {
+                    try await transcriptionViewModel.startTranscription(videoUrl: videoUrl, videoId: videoId)
+                } catch {
+                    print("Transcription error: \(error)")
+                }
             }
             
-            let fileName = "\(UUID().uuidString).mp4"
-            try await viewModel.uploadVideo(videoData: data, fileName: fileName, title: title, description: description)
+            // Refresh the feed after successful upload
+            await feedViewModel.refreshVideos()
             
             await MainActor.run {
-                alertMessage = "Video uploaded successfully!"
+                alertMessage = "Video uploaded successfully! Transcription in progress..."
                 showAlert = true
             }
         } catch {

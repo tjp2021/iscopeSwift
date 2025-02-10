@@ -71,12 +71,6 @@ struct SettingsProfileView: View {
                     } label: {
                         Label("Generate Test Data", systemImage: "doc.badge.plus")
                     }
-                    
-                    NavigationLink {
-                        TranscriptionTestView()
-                    } label: {
-                        Label("Test Transcription", systemImage: "waveform")
-                    }
                     #endif
                     
                     Button(role: .destructive) {
@@ -175,44 +169,38 @@ struct SettingsProfileView: View {
     private func processImage(_ image: UIImage) -> Data? {
         print("[SettingsProfileView] 🔍 STEP 1: Starting image processing")
         
-        do {
-            // Just resize to a tiny size since it's only for profile picture
-            let size = CGSize(width: 200, height: 200)
-            
-            print("[SettingsProfileView] 🔍 STEP 2: Creating image context")
-            UIGraphicsBeginImageContextWithOptions(size, true, 1.0)
-            defer { 
-                print("[SettingsProfileView] 🔍 STEP 3: Ending image context")
-                UIGraphicsEndImageContext() 
-            }
-            
-            // Simple draw with white background
-            print("[SettingsProfileView] 🔍 STEP 4: Drawing white background")
-            UIColor.white.setFill()
-            UIRectFill(CGRect(origin: .zero, size: size))
-            
-            print("[SettingsProfileView] 🔍 STEP 5: Drawing image")
-            image.draw(in: CGRect(origin: .zero, size: size))
-            
-            print("[SettingsProfileView] 🔍 STEP 6: Getting image from context")
-            guard let resizedImage = UIGraphicsGetImageFromCurrentImageContext() else {
-                print("[SettingsProfileView] ❌ FATAL: Failed to get image from context")
-                return nil
-            }
-            
-            print("[SettingsProfileView] 🔍 STEP 7: Converting to JPEG")
-            guard let imageData = resizedImage.jpegData(compressionQuality: 0.5) else {
-                print("[SettingsProfileView] ❌ FATAL: Failed to convert to JPEG")
-                return nil
-            }
-            
-            print("[SettingsProfileView] ✅ SUCCESS: Image processed, size: \(imageData.count) bytes")
-            return imageData
-            
-        } catch {
-            print("[SettingsProfileView] ❌ FATAL ERROR in processImage: \(error)")
+        // Just resize to a tiny size since it's only for profile picture
+        let size = CGSize(width: 200, height: 200)
+        
+        print("[SettingsProfileView] 🔍 STEP 2: Creating image context")
+        UIGraphicsBeginImageContextWithOptions(size, true, 1.0)
+        defer { 
+            print("[SettingsProfileView] 🔍 STEP 3: Ending image context")
+            UIGraphicsEndImageContext() 
+        }
+        
+        // Simple draw with white background
+        print("[SettingsProfileView] 🔍 STEP 4: Drawing white background")
+        UIColor.white.setFill()
+        UIRectFill(CGRect(origin: .zero, size: size))
+        
+        print("[SettingsProfileView] 🔍 STEP 5: Drawing image")
+        image.draw(in: CGRect(origin: .zero, size: size))
+        
+        print("[SettingsProfileView] 🔍 STEP 6: Getting image from context")
+        guard let resizedImage = UIGraphicsGetImageFromCurrentImageContext() else {
+            print("[SettingsProfileView] ❌ FATAL: Failed to get image from context")
             return nil
         }
+        
+        print("[SettingsProfileView] 🔍 STEP 7: Converting to JPEG")
+        guard let imageData = resizedImage.jpegData(compressionQuality: 0.5) else {
+            print("[SettingsProfileView] ❌ FATAL: Failed to convert to JPEG")
+            return nil
+        }
+        
+        print("[SettingsProfileView] ✅ SUCCESS: Image processed, size: \(imageData.count) bytes")
+        return imageData
     }
     
     private func saveProfile() async throws {
@@ -229,7 +217,7 @@ struct SettingsProfileView: View {
         var updates: [String: Any] = ["username": username]
         
         if email != user.email {
-            try await updateUserEmail(user: user, newEmail: email)
+            try await user.updateEmail(to: email)
         }
         
         if let newImage = profileImage {

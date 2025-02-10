@@ -66,21 +66,16 @@ class VideoFeedViewModel: ObservableObject {
     
     func fetchVideos() async {
         print("[VideoFeedViewModel] Starting to fetch videos")
-        guard !isLoadingMore else {
-            print("[VideoFeedViewModel] Fetch already in progress")
-            return
-        }
-        
         do {
-            let query = db.collection("videos")
-                .order(by: "createdAt", descending: true)
-                .limit(to: pageSize)
-            
             print("[VideoFeedViewModel] Executing Firestore query")
-            let snapshot = try await query.getDocuments()
+            let snapshot = try await db.collection("videos")
+                .order(by: "createdAt", descending: true)
+                .getDocuments()
+            
             print("[VideoFeedViewModel] Got \(snapshot.documents.count) videos")
             
-            let videos = snapshot.documents.compactMap { document in
+            // First, decode the basic video data
+            var videos = snapshot.documents.compactMap { document -> Video? in
                 let data = document.data()
                 return Video(
                     id: document.documentID,
@@ -91,13 +86,16 @@ class VideoFeedViewModel: ObservableObject {
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     likeCount: data["likeCount"] as? Int ?? 0,
                     commentCount: data["commentCount"] as? Int ?? 0,
-                    isLiked: false,
-                    viewCount: data["viewCount"] as? Int ?? 0
+                    isLiked: false, // Default value
+                    viewCount: data["viewCount"] as? Int ?? 0,
+                    transcriptionStatus: data["transcriptionStatus"] as? String,
+                    transcriptionText: data["transcriptionText"] as? String
                 )
             }
             
-            // Fetch like status for each video if user is logged in
+            // Then, if user is logged in, fetch like status for each video
             if let userId = Auth.auth().currentUser?.uid {
+                print("[VideoFeedViewModel] Fetching like status for user: \(userId)")
                 await withTaskGroup(of: (String, Bool).self) { group in
                     for video in videos {
                         group.addTask {
@@ -115,22 +113,25 @@ class VideoFeedViewModel: ObservableObject {
                         likeStatuses[videoId] = isLiked
                     }
                     
-                    self.videos = videos.map { video in
+                    // Update videos with like status
+                    videos = videos.map { video in
                         var updatedVideo = video
                         updatedVideo.isLiked = likeStatuses[video.id ?? ""] ?? false
                         return updatedVideo
                     }
                 }
-            } else {
+            }
+            
+            await MainActor.run {
                 self.videos = videos
             }
             
-            self.lastDocument = snapshot.documents.last
-            self.error = nil
-            print("[VideoFeedViewModel] Successfully processed videos")
+            print("[VideoFeedViewModel] Successfully processed \(videos.count) videos")
         } catch {
-            print("[VideoFeedViewModel] Error fetching videos: \(error.localizedDescription)")
-            self.error = error.localizedDescription
+            print("[VideoFeedViewModel] Error fetching videos: \(error)")
+            await MainActor.run {
+                self.error = error.localizedDescription
+            }
         }
     }
     

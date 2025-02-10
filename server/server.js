@@ -2,53 +2,101 @@ import http from 'http';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { Readable } from 'stream';
+import AWS from 'aws-sdk';
+import { WebSocketServer } from 'ws';
+import fs from 'fs';
+import { exec } from 'child_process';
+import https from 'https';
+import fetch from 'node-fetch';
+import FormData from 'form-data';
+const admin = require('firebase-admin');
+
+console.log('Starting server initialization...');
 
 // Load environment variables
 dotenv.config();
+console.log('Environment variables loaded');
 
-// Initialize OpenAI client
+// Verify OpenAI API key
+if (!process.env.OPENAI_API_KEY) {
+    console.error('❌ OPENAI_API_KEY is not set in environment variables');
+    process.exit(1);
+}
+
+// Initialize AWS
+console.log('Initializing AWS S3...');
+const s3 = new AWS.S3({
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    region: 'us-east-2'
+});
+console.log('AWS S3 initialized');
+
+// Initialize OpenAI client with additional configuration
+console.log('Initializing OpenAI client...');
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: process.env.OPENAI_API_KEY,
+    maxRetries: 5,
+    timeout: 180000, // 3 minutes timeout
 });
 
-/**
- * Simple HTTP server that handles transcription requests using OpenAI's Whisper API.
- * Endpoints:
- * - POST /test-transcription: Returns a test response for validating client integration
- * - POST /start-transcription: Handles actual video transcription using Whisper
- */
+// Verify API key is valid with detailed error handling
+try {
+    console.log('Verifying OpenAI API key...');
+    console.log('API Key type:', process.env.OPENAI_API_KEY.startsWith('sk-proj-') ? 'Project Key' : 'Standard Key');
+    
+    const modelList = await openai.models.list();
+    console.log('Available models:', modelList.data.map(model => model.id).join(', '));
+    console.log('✅ OpenAI API key verified successfully');
+} catch (error) {
+    console.error('❌ Failed to verify OpenAI API key');
+    console.error('Error type:', error.constructor.name);
+    console.error('Error message:', error.message);
+    if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+    }
+    if (error.cause) {
+        console.error('Error cause:', error.cause);
+    }
+    process.exit(1);
+}
 
+console.log('OpenAI client initialized');
+
+// Create HTTP server
 const server = http.createServer(async (req, res) => {
+    console.log(`\n[${new Date().toISOString()}] Received ${req.method} request to ${req.url}`);
+    
+    // Parse the URL to handle paths consistently
+    const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
+    const pathname = parsedUrl.pathname;
+    
     // Add CORS headers for cross-origin requests
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+    // Test endpoint
+    if (req.method === 'GET' && pathname === '/test') {
+        console.log('Handling test request');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'Server is running on port 3001' }));
+        return;
+    }
+
     // Handle OPTIONS request for CORS preflight
     if (req.method === 'OPTIONS') {
+        console.log('Handling CORS preflight request');
         res.writeHead(204);
         res.end();
         return;
     }
 
-    // Handle test transcription endpoint
-    if (req.method === 'POST' && req.url === '/test-transcription') {
-        const mockResponse = {
-            jobId: "test-123",
-            status: "completed",
-            transcriptUrl: "https://example.com/test-transcript.txt",
-            text: "This is a test transcription response."
-        };
-        
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(mockResponse));
-        return;
-    }
-
-    // Handle actual transcription endpoint
-    if (req.method === 'POST' && req.url === '/start-transcription') {
+    // Handle presigned URL generation
+    if (req.method === 'POST' && pathname === '/generate-presigned-url') {
+        console.log('Handling presigned URL generation request');
         try {
-            // Get request body
             let body = '';
             req.on('data', chunk => {
                 body += chunk.toString();
@@ -56,38 +104,94 @@ const server = http.createServer(async (req, res) => {
 
             req.on('end', async () => {
                 try {
-                    const { videoUrl, languageCode } = JSON.parse(body);
-                    console.log(`Processing video from URL: ${videoUrl}`);
+                    console.log('Request body:', body);
+                    const { fileName } = JSON.parse(body);
+                    console.log('Generating presigned URL for file:', fileName);
                     
-                    // Download video file from URL
-                    const videoResponse = await fetch(videoUrl);
-                    if (!videoResponse.ok) {
-                        throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
+                    const videoKey = `videos/${Date.now()}-${fileName}`;
+                    console.log('Generated video key:', videoKey);
+                    
+                    const params = {
+                        Bucket: 'iscope',
+                        Key: videoKey,
+                        Expires: 60 * 5,
+                        ContentType: 'video/mp4'
+                    };
+                    console.log('S3 params:', params);
+
+                    const uploadURL = s3.getSignedUrl('putObject', params);
+                    console.log('Generated upload URL:', uploadURL);
+                    
+                    const responseBody = { 
+                        uploadURL: uploadURL,
+                        videoKey: videoKey
+                    };
+                    console.log('Sending response:', JSON.stringify(responseBody, null, 2));
+                    
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(responseBody));
+                    console.log('Successfully sent presigned URL response');
+                } catch (error) {
+                    console.error('Presigned URL error:', error);
+                    console.error('Error stack:', error.stack);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ 
+                        error: 'Failed to generate presigned URL',
+                        details: error.message 
+                    }));
+                }
+            });
+            return;
+        } catch (error) {
+            console.error('Request handling error:', error);
+            console.error('Error stack:', error.stack);
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid request' }));
+            return;
+        }
+    }
+
+    // Handle upload complete endpoint
+    if (req.method === 'POST' && pathname === '/start-transcription') {
+        console.log('Handling transcription request');
+        try {
+            let body = '';
+            req.on('data', chunk => {
+                body += chunk.toString();
+            });
+
+            req.on('end', async () => {
+                try {
+                    console.log('Request body:', body);
+                    const { videoUrl, videoId } = JSON.parse(body);
+                    console.log('Processing video from URL:', videoUrl);
+                    
+                    // Use the new processTranscription function
+                    const transcription = await processTranscription(videoUrl, videoId);
+                    
+                    // Update Firestore with transcription
+                    if (!admin.apps.length) {
+                        admin.initializeApp({
+                            credential: admin.credential.applicationDefault()
+                        });
                     }
-                    
-                    const buffer = await videoResponse.arrayBuffer();
-                    const file = new File([buffer], 'video.mp4', { type: 'video/mp4' });
-                    
-                    console.log('Creating transcription with Whisper API...');
-                    const transcription = await openai.audio.transcriptions.create({
-                        file: file,
-                        model: "whisper-1",
-                        language: languageCode || 'en'
+
+                    await admin.firestore().collection('videos').doc(videoId).update({
+                        transcriptionStatus: 'completed',
+                        transcriptionText: transcription.text
                     });
 
-                    console.log('Transcription completed:', transcription);
-
-                    const transcriptionResponse = {
-                        jobId: `whisper-${Date.now()}`,
-                        status: "completed",
-                        transcriptUrl: "", // We could store this in S3 if needed
-                        text: transcription.text
-                    };
-
                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify(transcriptionResponse));
+                    res.end(JSON.stringify({ 
+                        jobId: videoId,
+                        status: "completed",
+                        transcriptUrl: videoUrl,
+                        text: transcription.text
+                    }));
+                    console.log('Successfully sent transcription response');
                 } catch (error) {
                     console.error('Transcription error:', error);
+                    console.error('Error stack:', error.stack);
                     res.writeHead(500, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ 
                         error: 'Transcription failed',
@@ -97,6 +201,7 @@ const server = http.createServer(async (req, res) => {
             });
         } catch (error) {
             console.error('Request handling error:', error);
+            console.error('Error stack:', error.stack);
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Invalid request' }));
         }
@@ -104,44 +209,294 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Default response for unhandled routes
+    console.log('Unhandled route:', pathname);
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not Found' }));
 });
 
-const port = 3000;
+// Initialize WebSocket server
+const wss = new WebSocketServer({ server });
 
-// Error handling
-server.on('error', (err) => {
-    console.error('Server error:', err);
-    if (err.code === 'EADDRINUSE') {
-        console.error(`Port ${port} is already in use`);
+// Store active connections
+const clients = new Map();
+
+wss.on('connection', (ws) => {
+    console.log('New WebSocket connection');
+    
+    // Generate unique client ID
+    const clientId = Date.now();
+    clients.set(clientId, ws);
+    
+    // Send welcome message
+    ws.send(JSON.stringify({
+        type: 'connection',
+        message: 'Connected to transcription service'
+    }));
+    
+    ws.on('message', async (message) => {
+        try {
+            const data = JSON.parse(message);
+            console.log('Received:', data);
+            
+            if (data.type === 'subscribe') {
+                // Store videoId with client connection
+                ws.videoId = data.videoId;
+                ws.send(JSON.stringify({
+                    type: 'subscribed',
+                    videoId: data.videoId
+                }));
+            }
+        } catch (error) {
+            console.error('WebSocket message error:', error);
+            ws.send(JSON.stringify({
+                type: 'error',
+                message: error.message
+            }));
+        }
+    });
+    
+    ws.on('close', () => {
+        console.log('Client disconnected');
+        clients.delete(clientId);
+    });
+    
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+        clients.delete(clientId);
+    });
+});
+
+// Function to broadcast transcription progress
+function broadcastTranscriptionProgress(videoId, progress) {
+    for (const [_, ws] of clients) {
+        if (ws.videoId === videoId) {
+            ws.send(JSON.stringify({
+                type: 'progress',
+                videoId: videoId,
+                progress: progress
+            }));
+        }
     }
-    process.exit(1);
+}
+
+// Helper function to compress video using FFmpeg
+async function compressVideo(inputBuffer) {
+    console.log('\n🎬 Starting video compression with FFmpeg...');
+    
+    // Create temporary input and output files
+    const inputPath = `/tmp/input-${Date.now()}.mp4`;
+    const outputPath = `/tmp/output-${Date.now()}.mp4`;
+    
+    try {
+        // Write input buffer to temporary file
+        console.log('Writing input buffer to temporary file...');
+        await fs.promises.writeFile(inputPath, inputBuffer);
+        
+        // OpenAI has a 25MB file size limit
+        const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB in bytes
+        const inputSize = inputBuffer.length;
+        
+        // Calculate target bitrate based on input size
+        // Aim for 20MB to leave some headroom
+        const targetSize = Math.min(20 * 1024 * 1024, inputSize);
+        const durationSeconds = 600; // Assume max 10 minutes, adjust if needed
+        const targetBitrate = Math.floor((targetSize * 8) / durationSeconds);
+        
+        // Prepare FFmpeg command with bitrate control
+        const ffmpegCommand = `ffmpeg -i ${inputPath} -c:v libx264 -preset medium -crf 23 -maxrate ${targetBitrate}k -bufsize ${targetBitrate*2}k -c:a aac -b:a 64k ${outputPath}`;
+        console.log('Running FFmpeg command:', ffmpegCommand);
+        
+        // Execute FFmpeg command
+        await new Promise((resolve, reject) => {
+            exec(ffmpegCommand, (error, stdout, stderr) => {
+                if (error) {
+                    console.error('FFmpeg error:', error);
+                    reject(error);
+                    return;
+                }
+                resolve();
+            });
+        });
+        
+        // Read the compressed video
+        console.log('Reading compressed video...');
+        const compressedBuffer = await fs.promises.readFile(outputPath);
+        
+        // Verify the compressed size
+        if (compressedBuffer.length > MAX_FILE_SIZE) {
+            throw new Error(`Compressed file size (${compressedBuffer.length} bytes) exceeds OpenAI's limit of ${MAX_FILE_SIZE} bytes`);
+        }
+        
+        // Clean up temporary files
+        await fs.promises.unlink(inputPath);
+        await fs.promises.unlink(outputPath);
+        
+        console.log('✅ Video compression complete');
+        return compressedBuffer;
+    } catch (error) {
+        // Clean up on error
+        try {
+            await fs.promises.unlink(inputPath);
+            await fs.promises.unlink(outputPath);
+        } catch {}
+        throw error;
+    }
+}
+
+// Helper function to create form data with proper headers
+async function createFormDataWithFile(buffer, filename = 'video.mp4') {
+    const formData = new FormData();
+    formData.append('file', buffer, {
+        filename: filename,
+        contentType: 'video/mp4'
+    });
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'en');
+    formData.append('response_format', 'json');
+    
+    return formData;
+}
+
+// Helper function to stream file to OpenAI
+async function streamFileToOpenAI(formData) {
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            ...formData.getHeaders()
+        },
+        body: formData,
+        timeout: 300000 // 5 minutes
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`OpenAI API error: ${response.status} ${text}`);
+    }
+
+    return response.json();
+}
+
+// Helper function to retry failed requests
+async function retryWithBackoff(operation, maxRetries = 5) {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await operation();
+        } catch (error) {
+            if (i === maxRetries - 1) throw error;
+            
+            // Log retry attempt
+            console.log(`Attempt ${i + 1} failed, retrying in ${Math.pow(2, i)} seconds...`);
+            console.error('Error:', error.message);
+            
+            // Exponential backoff
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+        }
+    }
+}
+
+// Modify the transcription process to send progress updates
+async function processTranscription(videoUrl, videoId) {
+    try {
+        console.log('\n=== Starting Transcription Process ===');
+        console.log(`🎥 Video URL: ${videoUrl}`);
+        console.log(`📝 Video ID: ${videoId}`);
+        
+        // Send initial progress
+        broadcastTranscriptionProgress(videoId, 0);
+        
+        // Fetch video
+        console.log('\n1️⃣ Fetching video from S3...');
+        const videoResponse = await fetch(videoUrl);
+        if (!videoResponse.ok) {
+            console.error(`❌ Failed to fetch video: ${videoResponse.status} ${videoResponse.statusText}`);
+            throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
+        }
+        console.log('✅ Video fetched successfully');
+        console.log(`📊 Response status: ${videoResponse.status}`);
+        console.log(`📦 Content-Type: ${videoResponse.headers.get('content-type')}`);
+        console.log(`📦 Content-Length: ${videoResponse.headers.get('content-length')} bytes`);
+        
+        broadcastTranscriptionProgress(videoId, 0.2);
+        
+        // Convert to buffer
+        console.log('\n2️⃣ Converting video to buffer...');
+        const buffer = await videoResponse.arrayBuffer();
+        console.log('✅ Conversion complete');
+        console.log(`📊 Buffer size: ${buffer.byteLength} bytes`);
+        
+        broadcastTranscriptionProgress(videoId, 0.3);
+        
+        // Compress video using FFmpeg
+        console.log('\n3️⃣ Compressing video...');
+        const compressedBuffer = await compressVideo(Buffer.from(buffer));
+        console.log(`📊 Compressed size: ${compressedBuffer.length} bytes`);
+        console.log(`📊 Compression ratio: ${((1 - compressedBuffer.length / buffer.byteLength) * 100).toFixed(2)}%`);
+        
+        broadcastTranscriptionProgress(videoId, 0.5);
+        
+        // Create form data with proper headers
+        console.log('\n4️⃣ Starting OpenAI transcription...');
+        console.log('📡 Preparing OpenAI API request...');
+        
+        const formData = await createFormDataWithFile(compressedBuffer);
+        
+        console.log('📡 Sending request to OpenAI...');
+        console.log('📊 Request details:');
+        console.log(`- Model: whisper-1`);
+        console.log(`- Language: en`);
+        console.log(`- File size: ${compressedBuffer.length} bytes`);
+        
+        // Use retryWithBackoff with the new streaming function
+        const transcription = await retryWithBackoff(async () => {
+            return await streamFileToOpenAI(formData);
+        });
+        
+        console.log('\n✅ Transcription successful!');
+        console.log(`📝 Transcription length: ${transcription.text.length} characters`);
+        console.log('=== Transcription Process Complete ===\n');
+        
+        broadcastTranscriptionProgress(videoId, 1);
+        
+        return transcription;
+    } catch (error) {
+        console.error('\n❌ Transcription Error:');
+        console.error('Error details:', {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            type: error.type,
+            status: error.status
+        });
+        
+        if (error.cause) {
+            console.error('\nUnderlying cause:');
+            console.error('Cause details:', {
+                name: error.cause.name,
+                message: error.cause.message,
+                code: error.cause.code,
+                type: error.cause.type,
+                errno: error.cause.errno
+            });
+        }
+        
+        throw error;
+    }
+}
+
+const port = process.env.PORT || 3001;
+const host = '0.0.0.0';
+
+// Add error handling for server
+server.on('error', (error) => {
+    console.error('Server error:', error);
+    if (error.code === 'EADDRINUSE') {
+        console.error(`Port ${port} is already in use. Please choose a different port or kill the process using this port.`);
+    }
 });
 
-// Graceful shutdown handlers
-process.on('SIGTERM', () => {
-    console.log('Shutting down gracefully...');
-    server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-    });
-});
-
-process.on('SIGINT', () => {
-    console.log('Shutting down gracefully...');
-    server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-    });
-});
-
-// Start the server
-try {
-    server.listen(port, '0.0.0.0', () => {
-        console.log(`Server running on port ${port}`);
-    });
-} catch (err) {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-} 
+server.listen(port, host, () => {
+    console.log(`\n=== Server running at http://${host}:${port} ===`);
+    console.log(`WebSocket server running at ws://${host}:${port}`);
+    console.log('Ready to handle requests...\n');
+}); 

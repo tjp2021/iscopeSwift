@@ -2,7 +2,7 @@ import SwiftUI
 import FirebaseAuth
 
 struct AuthenticationView: View {
-    @ObservedObject var authViewModel: AuthViewModel
+    @EnvironmentObject private var authViewModel: AuthViewModel
     @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
@@ -11,6 +11,8 @@ struct AuthenticationView: View {
     @State private var isCreatingAccount = false
     @FocusState private var focusedField: Field?
     @State private var isLoading = false
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     enum Field {
         case email, password, confirmPassword
@@ -189,5 +191,6 @@ struct AuthenticationView: View {
 }
 
 #Preview {
-    AuthenticationView(authViewModel: AuthViewModel())
+    AuthenticationView()
+        .environmentObject(AuthViewModel(appState: AppState()))
 } 

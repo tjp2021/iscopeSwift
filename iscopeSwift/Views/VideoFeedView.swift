@@ -5,7 +5,7 @@ import Combine
 
 struct VideoFeedView: View {
     @ObservedObject var authViewModel: AuthViewModel
-    @StateObject private var viewModel = VideoFeedViewModel()
+    @EnvironmentObject private var viewModel: VideoFeedViewModel
     @State private var showingUploadSheet = false
     @State private var showingMyVideosSheet = false
     @State private var showingSettingsSheet = false

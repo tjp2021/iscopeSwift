@@ -11,6 +11,7 @@ struct VideoEngagementView: View {
     @State private var showingMyVideosSheet = false
     @State private var newComment = ""
     @State private var showLikeAnimation = false
+    @State private var showingTranscription = false
     
     var body: some View {
         VStack(spacing: 20) {
@@ -106,6 +107,23 @@ struct VideoEngagementView: View {
                 .frame(width: 50, height: 50)
                 .contentShape(Rectangle())
             }
+            
+            // Add transcription button
+            Button {
+                showingTranscription = true
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 30))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                    Text("Transcript")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 50, height: 50)
+                .contentShape(Rectangle())
+            }
         }
         .padding(.trailing, 8)
         .padding(.top, 50)
@@ -117,6 +135,11 @@ struct VideoEngagementView: View {
         }
         .sheet(isPresented: $showingMyVideosSheet) {
             MyVideosView()
+        }
+        .sheet(isPresented: $showingTranscription) {
+            NavigationView {
+                TranscriptionView(video: video)
+            }
         }
     }
 } 

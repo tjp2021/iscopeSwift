@@ -141,6 +141,7 @@ struct VideoPageView: View {
     @State private var isRetrying = false
     @State private var isVisible = false
     @State private var showingComments = false
+    @State private var showingTranscription = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -150,7 +151,21 @@ struct VideoPageView: View {
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .edgesIgnoringSafeArea(.all)
                         .overlay(alignment: .bottom) {
-                            overlayContent
+                            VStack(spacing: 0) {
+                                // Live captions overlay
+                                if let transcriptionText = video.transcriptionText {
+                                    Text(transcriptionText)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Color.black.opacity(0.6))
+                                        .cornerRadius(8)
+                                        .padding(.horizontal)
+                                        .padding(.bottom, 100) // Add padding to avoid overlap with controls
+                                }
+                                
+                                overlayContent
+                            }
                         }
                         .overlay(alignment: .trailing) {
                             VideoEngagementView(video: $video, viewModel: viewModel)
@@ -215,6 +230,11 @@ struct VideoPageView: View {
         }
         .sheet(isPresented: $showingComments) {
             CommentsView(video: .constant(video))
+        }
+        .sheet(isPresented: $showingTranscription) {
+            NavigationView {
+                TranscriptionView(video: video)
+            }
         }
     }
     

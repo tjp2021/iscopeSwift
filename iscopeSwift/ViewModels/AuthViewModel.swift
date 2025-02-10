@@ -8,13 +8,17 @@ class AuthViewModel: ObservableObject {
     @Published var currentUser: User?
     @Published var errorMessage: String?
     private var handle: AuthStateDidChangeListenerHandle?
+    private var appState: AppState
     
-    init() {
+    init(appState: AppState) {
         print("[Auth] Initializing AuthViewModel")
+        self.appState = appState
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             DispatchQueue.main.async {
                 self?.isAuthenticated = user != nil
                 self?.currentUser = user
+                self?.appState.authState.isAuthenticated = user != nil
+                self?.appState.authState.currentUser = user
             }
         }
     }
