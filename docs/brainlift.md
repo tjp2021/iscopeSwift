@@ -758,3 +758,101 @@ Anti-Patterns to Avoid:
    - Test state propagation
    - Verify cleanup
    - Monitor performance 
+
+# Caption System Analysis
+
+## Problem/Feature Overview
+
+Initial Requirements:
+- Display full video transcription as captions
+- Proper timing and synchronization
+- Clean UI presentation
+- Error handling
+
+Key Challenges:
+1. Text Display:
+   - Currently only showing first line
+   - Missing proper text segmentation
+   - No timing synchronization
+   - Limited UI formatting
+
+2. Performance:
+   - Handling long transcription texts
+   - Smooth updates during playback
+   - Memory management
+   - State synchronization
+
+3. User Experience:
+   - Caption visibility
+   - Font readability
+   - Position customization
+   - Toggle functionality
+
+Success Criteria:
+- Full transcription display
+- Proper text segmentation
+- Clean UI presentation
+- Smooth performance
+
+## Current Implementation Analysis
+
+### CaptionsOverlay
+Current State:
+```swift
+if let text = transcriptionText {
+    Text(text)
+        .lineLimit(2)
+        // Limited styling and positioning
+}
+```
+
+Issues:
+1. Line limit restricts full text
+2. No text segmentation
+3. Basic styling only
+4. Missing timing control
+
+## Recommended Solution
+
+Implementation Details:
+1. Text Processing:
+   - Segment transcription into timed chunks
+   - Implement proper caption timing
+   - Add text formatting options
+
+2. UI Components:
+   - Enhanced caption overlay
+   - Custom styling options
+   - Position controls
+   - Visibility toggle
+
+3. Performance:
+   - Efficient text updates
+   - Memory optimization
+   - Smooth transitions
+
+## Key Lessons
+
+Technical Insights:
+1. Need proper text segmentation
+2. Implement timing control
+3. Enhanced styling system
+4. Performance optimization
+
+Process Improvements:
+1. Better feature validation
+2. Comprehensive testing
+3. User feedback integration
+4. Performance monitoring
+
+Best Practices:
+1. Text processing patterns
+2. UI component design
+3. State management
+4. Error handling
+
+Anti-Patterns to Avoid:
+1. Direct text display without processing
+2. Missing timing control
+3. Limited styling options
+4. Poor performance management 

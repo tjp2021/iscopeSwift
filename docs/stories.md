@@ -35,7 +35,7 @@
 
 - [x] Progress Tracking
   - [x] Implement progress polling
-  - [ ] Set up WebSocket for real-time updates
+  - [x] Set up WebSocket for real-time updates
   - [x] Handle background app states
   - [x] Add timeout handling
 
@@ -71,7 +71,7 @@
   - [ ] Implement search highlighting
   - [ ] Add search filters
 
-- [ ] Video Integration
+- [x] Video Integration
   - [x] Link timestamps to text
   - [x] Implement video seeking
   - [x] Add preview thumbnails
@@ -84,7 +84,7 @@
   - [ ] Support multiple formats
   - [ ] Add export settings
 
-- [ ] Share Implementation
+- [x] Share Implementation
   - [x] Add share sheet integration
   - [x] Implement file sharing
   - [ ] Add export analytics
@@ -106,28 +106,28 @@
   - [ ] Support regional variants
 
 ### 7. Subtitle Generation
-- [ ] Subtitle Processing
-  - [ ] Implement SRT generation
-  - [ ] Add WebVTT support
-  - [ ] Configure timing options
-  - [ ] Add format validation
+- [x] Subtitle Processing
+  - [x] Implement SRT generation
+  - [x] Add WebVTT support
+  - [x] Configure timing options
+  - [x] Add format validation
 
-- [ ] File Management
-  - [ ] Implement file storage
-  - [ ] Add version control
-  - [ ] Configure backup
-  - [ ] Handle file conflicts
+- [x] File Management
+  - [x] Implement file storage
+  - [x] Add version control
+  - [x] Configure backup
+  - [x] Handle file conflicts
 
 ### 8. Caption Playback
 - [ ] Video Player
-  - [ ] Implement custom player
+  - [x] Implement custom player
   - [ ] Add subtitle rendering
   - [ ] Support multiple tracks
-  - [ ] Add playback controls
+  - [x] Add playback controls
 
 - [ ] Subtitle Display
   - [ ] Add style options
-  - [ ] Implement positioning
+  - [x] Implement basic positioning
   - [ ] Add font selection
   - [ ] Support custom styles
 
@@ -145,40 +145,40 @@
   - [ ] Handle track sync
 
 ### 10. Subtitle Customization
-- [ ] Style Editor
-  - [ ] Add font controls
-  - [ ] Implement color picker
-  - [ ] Add position controls
-  - [ ] Support presets
+- [x] Style Editor
+  - [x] Add font controls
+  - [x] Implement color picker
+  - [x] Add position controls
+  - [x] Support presets
 
-- [ ] Timing Tools
-  - [ ] Add timing adjustment
-  - [ ] Implement sync tools
-  - [ ] Add batch editing
-  - [ ] Support time shifting
+- [x] Timing Tools
+  - [x] Add timing adjustment
+  - [x] Implement sync tools
+  - [x] Add batch editing
+  - [x] Support time shifting
 
 ## Infrastructure & DevOps 🛠️
 
 ### Backend Services
-- [ ] Server Setup
-  - [ ] Configure cloud services
-  - [ ] Set up CI/CD
-  - [ ] Implement monitoring
-  - [ ] Configure alerts
+- [x] Server Setup
+  - [x] Configure cloud services
+  - [x] Set up CI/CD
+  - [x] Implement monitoring
+  - [x] Configure alerts
 
 ### Data Management
-- [ ] Storage
-  - [ ] Set up cloud storage
-  - [ ] Implement caching
-  - [ ] Configure backup
-  - [ ] Add data migration
+- [x] Storage
+  - [x] Set up cloud storage
+  - [x] Implement caching
+  - [x] Configure backup
+  - [x] Add data migration
 
 ### Security
-- [ ] Authentication
-  - [ ] Implement user auth
-  - [ ] Add API security
-  - [ ] Configure encryption
-  - [ ] Add audit logging
+- [x] Authentication
+  - [x] Implement user auth
+  - [x] Add API security
+  - [x] Configure encryption
+  - [x] Add audit logging
 
 ### Testing
 - [ ] Test Suite
@@ -197,7 +197,8 @@
 ### Current Sprint Focus
 - [x] Feature 1: Speech-to-Text
 - [x] Feature 2: Progress Indicator
-- [ ] Feature 3: Editable Transcript (In Progress)
+- [ ] Feature 3: Caption Playback (Partial - Only displays first line)
+- [ ] Feature 4: Search Implementation
 
 ### Next Up
 - Feature 4: Search Implementation
@@ -207,4 +208,4 @@
 - Priority: High
 - Timeline: Q1 2024
 - Dependencies: iOS 15+, Swift 5.5+
-- Current Status: Core transcription functionality working, need to implement editing and search features 
+- Current Status: Core transcription working, captions need improvement (currently only showing first line), then moving to search and export features 
