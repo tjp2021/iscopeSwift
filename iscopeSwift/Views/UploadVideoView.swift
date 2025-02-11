@@ -130,8 +130,16 @@ struct UploadVideoView: View {
                     videoId: videoId
                 )
                 
+                // Refresh the video feed to include the new video
+                await feedViewModel.refreshVideos()
+                
                 alertMessage = "Video uploaded successfully! Transcription in progress..."
                 showAlert = true
+                
+                // Dismiss the upload sheet after successful upload
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    dismiss()
+                }
             } catch {
                 print("Transcription error: \(error)")
                 alertMessage = "Error during transcription: \(error.localizedDescription)"

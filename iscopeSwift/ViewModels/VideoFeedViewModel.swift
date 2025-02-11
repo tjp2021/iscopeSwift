@@ -122,6 +122,24 @@ class VideoFeedViewModel: ObservableObject {
                     return nil
                 }
                 
+                // Parse transcription segments if they exist
+                var parsedSegments: [TranscriptionSegment]? = nil
+                if let segments = try? document.get("transcriptionSegments") as? [[String: Any]] {
+                    parsedSegments = segments.compactMap { segmentData in
+                        guard let text = segmentData["text"] as? String,
+                              let startTime = segmentData["startTime"] as? Double,
+                              let endTime = segmentData["endTime"] as? Double else {
+                            return nil
+                        }
+                        return TranscriptionSegment(
+                            text: text,
+                            startTime: startTime,
+                            endTime: endTime,
+                            words: nil
+                        )
+                    }
+                }
+                
                 return Video(
                     id: document.documentID,
                     userId: data["userId"] as? String ?? "",
@@ -135,7 +153,7 @@ class VideoFeedViewModel: ObservableObject {
                     commentCount: data["commentCount"] as? Int ?? 0,
                     transcriptionStatus: data["transcriptionStatus"] as? String,
                     transcriptionText: data["transcriptionText"] as? String,
-                    transcriptionSegments: nil
+                    transcriptionSegments: parsedSegments
                 )
             }
             
@@ -153,27 +171,40 @@ class VideoFeedViewModel: ObservableObject {
     }
     
     private func setupTranscriptionListeners() {
+        // Remove existing listeners
         for listener in transcriptionListeners.values {
             listener.remove()
         }
         transcriptionListeners.removeAll()
         
+        // Set up listeners for all videos
         for video in videos {
+            print("[DEBUG] Setting up transcription listener for video: \(video.id)")
+            print("[DEBUG] Current transcription status: \(video.transcriptionStatus ?? "nil")")
+            
             let listener = db.collection("videos").document(video.id)
                 .addSnapshotListener { [weak self] documentSnapshot, error in
                     guard let self = self else { return }
                     
                     if let error = error {
+                        print("[ERROR] Transcription listener error: \(error.localizedDescription)")
                         self.error = error.localizedDescription
                         return
                     }
                     
-                    guard let document = documentSnapshot, document.exists else { return }
+                    guard let document = documentSnapshot, document.exists else {
+                        print("[DEBUG] Document does not exist for video: \(video.id)")
+                        return
+                    }
                     
                     let data = document.data() ?? [:]
                     let transcriptionStatus = data["transcriptionStatus"] as? String
                     let transcriptionText = data["transcriptionText"] as? String
                     let transcriptionSegments = try? document.get("transcriptionSegments") as? [[String: Any]]
+                    
+                    print("[DEBUG] Received update for video \(video.id)")
+                    print("[DEBUG] New transcription status: \(transcriptionStatus ?? "nil")")
+                    print("[DEBUG] Has segments: \(transcriptionSegments != nil)")
                     
                     if let index = self.videos.firstIndex(where: { $0.id == video.id }) {
                         Task { @MainActor in
@@ -182,23 +213,24 @@ class VideoFeedViewModel: ObservableObject {
                             updatedVideo.transcriptionText = transcriptionText
                             
                             if let segments = transcriptionSegments {
-                                var parsedSegments: [TranscriptionSegment] = []
-                                
-                                for segmentData in segments {
-                                    if let text = segmentData["text"] as? String,
-                                       let startTime = segmentData["startTime"] as? Double,
-                                       let endTime = segmentData["endTime"] as? Double {
-                                        let segment = TranscriptionSegment(
-                                            text: text,
-                                            startTime: startTime,
-                                            endTime: endTime,
-                                            words: nil
-                                        )
-                                        parsedSegments.append(segment)
+                                let parsedSegments: [TranscriptionSegment] = segments.compactMap { segmentData -> TranscriptionSegment? in
+                                    guard let text = segmentData["text"] as? String,
+                                          let startTime = segmentData["startTime"] as? Double,
+                                          let endTime = segmentData["endTime"] as? Double else {
+                                        return nil
                                     }
+                                    return TranscriptionSegment(
+                                        text: text,
+                                        startTime: startTime,
+                                        endTime: endTime,
+                                        words: nil
+                                    )
                                 }
                                 
-                                updatedVideo.transcriptionSegments = parsedSegments
+                                if !parsedSegments.isEmpty {
+                                    print("[DEBUG] Updated segments for video \(video.id): \(parsedSegments.count) segments")
+                                    updatedVideo.transcriptionSegments = parsedSegments
+                                }
                             }
                             
                             self.videos[index] = updatedVideo
@@ -233,14 +265,36 @@ class VideoFeedViewModel: ObservableObject {
             
             let snapshot = try await query.getDocuments()
             
-            let newVideos = snapshot.documents.compactMap { document in
+            let newVideos = snapshot.documents.compactMap { document -> Video? in
                 let data = document.data()
+                let url = data["url"] as? String ?? data["videoUrl"] as? String ?? ""
+                
+                guard !url.isEmpty else { return nil }
+                
+                // Parse transcription segments if they exist
+                var parsedSegments: [TranscriptionSegment]? = nil
+                if let segments = try? document.get("transcriptionSegments") as? [[String: Any]] {
+                    parsedSegments = segments.compactMap { segmentData -> TranscriptionSegment? in
+                        guard let text = segmentData["text"] as? String,
+                              let startTime = segmentData["startTime"] as? Double,
+                              let endTime = segmentData["endTime"] as? Double else {
+                            return nil
+                        }
+                        return TranscriptionSegment(
+                            text: text,
+                            startTime: startTime,
+                            endTime: endTime,
+                            words: nil
+                        )
+                    }
+                }
+                
                 return Video(
                     id: document.documentID,
                     userId: data["userId"] as? String ?? "",
                     title: data["title"] as? String ?? "",
                     description: data["description"] as? String,
-                    url: data["videoUrl"] as? String ?? "",
+                    url: url,
                     thumbnailUrl: data["thumbnailUrl"] as? String,
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     viewCount: data["viewCount"] as? Int ?? 0,
@@ -248,7 +302,7 @@ class VideoFeedViewModel: ObservableObject {
                     commentCount: data["commentCount"] as? Int ?? 0,
                     transcriptionStatus: data["transcriptionStatus"] as? String,
                     transcriptionText: data["transcriptionText"] as? String,
-                    transcriptionSegments: nil
+                    transcriptionSegments: parsedSegments
                 )
             }
             
@@ -272,7 +326,8 @@ class VideoFeedViewModel: ObservableObject {
             "viewCount": video.viewCount,
             "thumbnailUrl": video.thumbnailUrl as Any,
             "transcriptionStatus": video.transcriptionStatus as Any,
-            "transcriptionText": video.transcriptionText as Any
+            "transcriptionText": video.transcriptionText as Any,
+            "transcriptionSegments": video.transcriptionSegments as Any
         ]
         return data
     }

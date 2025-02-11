@@ -358,6 +358,9 @@ struct VideoPageView: View {
                             
                             // Captions Button
                             Button(action: {
+                                print("[DEBUG] Toggling captions. Current state: \(showCaptions)")
+                                print("[DEBUG] Transcription status: \(video.transcriptionStatus ?? "nil")")
+                                print("[DEBUG] Has segments: \(video.transcriptionSegments?.isEmpty == false)")
                                 showCaptions.toggle()
                             }) {
                                 Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
@@ -390,7 +393,7 @@ struct VideoPageView: View {
                 }
                 
                 // Captions Overlay
-                if showCaptions {
+                if showCaptions && video.transcriptionSegments?.isEmpty == false {
                     VStack {
                         Spacer()
                         CaptionsOverlay(captionManager: captionManager)
