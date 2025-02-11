@@ -6,15 +6,41 @@ struct VideoEngagementView: View {
     @Binding var video: Video
     @ObservedObject var viewModel: VideoFeedViewModel
     @StateObject private var engagementViewModel = EngagementViewModel()
+    @Binding var showCaptions: Bool
     @State private var showComments = false
     @State private var showingUploadSheet = false
     @State private var showingMyVideosSheet = false
     @State private var newComment = ""
     @State private var showLikeAnimation = false
     @State private var showingTranscription = false
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         VStack(spacing: 20) {
+            HStack(spacing: 30) {
+                // CC Button
+                Button {
+                    print("[VideoEngagementView] Caption toggle pressed")
+                    print("[VideoEngagementView] Current showCaptions state: \(showCaptions)")
+                    withAnimation {
+                        showCaptions.toggle()
+                    }
+                    print("[VideoEngagementView] New showCaptions state: \(showCaptions)")
+                } label: {
+                    VStack {
+                        Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
+                            .font(.system(size: 24))
+                            .frame(width: 50, height: 50)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(25)
+                            .shadow(color: .black.opacity(0.2), radius: 5)
+                        Text(showCaptions ? "CC On" : "CC Off")
+                            .font(.caption)
+                    }
+                }
+                .foregroundColor(.white)
+            }
+            
             // Like button
             Button {
                 Task {
@@ -107,23 +133,6 @@ struct VideoEngagementView: View {
                 .frame(width: 50, height: 50)
                 .contentShape(Rectangle())
             }
-            
-            // Add transcription button
-            Button {
-                showingTranscription = true
-            } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: "text.bubble")
-                        .font(.system(size: 30))
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                    Text("Transcript")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 50, height: 50)
-                .contentShape(Rectangle())
-            }
         }
         .padding(.trailing, 8)
         .padding(.top, 50)
@@ -135,11 +144,6 @@ struct VideoEngagementView: View {
         }
         .sheet(isPresented: $showingMyVideosSheet) {
             MyVideosView()
-        }
-        .sheet(isPresented: $showingTranscription) {
-            NavigationView {
-                TranscriptionView(video: video)
-            }
         }
     }
 } 

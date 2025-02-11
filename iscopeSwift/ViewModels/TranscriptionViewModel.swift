@@ -27,12 +27,14 @@ class TranscriptionViewModel: ObservableObject {
     }
     
     deinit {
-        Task { @MainActor in
-            disconnectWebSocket()
-        }
+        print("[TranscriptionViewModel] Deinit called")
+        // Since we can't use Task in deinit, we'll just do the minimal cleanup
+        webSocket?.cancel(with: .goingAway, reason: nil)
+        session?.invalidateAndCancel()
     }
     
     private func setupWebSocket() {
+        print("[TranscriptionViewModel] Setting up WebSocket")
         session = URLSession(configuration: .default)
         guard let url = URL(string: wsUrl) else { return }
         
@@ -43,13 +45,17 @@ class TranscriptionViewModel: ObservableObject {
     }
     
     private func disconnectWebSocket() {
+        print("[TranscriptionViewModel] Disconnecting WebSocket")
         webSocket?.cancel(with: .goingAway, reason: nil)
         webSocket = nil
+        session?.invalidateAndCancel()
         session = nil
     }
     
     private func receiveMessage() {
-        webSocket?.receive { [weak self] result in
+        guard let webSocket = webSocket else { return }
+        
+        webSocket.receive { [weak self] result in
             guard let self = self else { return }
             
             switch result {
@@ -60,17 +66,19 @@ class TranscriptionViewModel: ObservableObject {
                         self.handleWebSocketMessage(text)
                     }
                 case .data(let data):
-                    print("Received binary message: \(data)")
+                    print("[TranscriptionViewModel] Received binary message: \(data)")
                 @unknown default:
                     break
                 }
-                // Continue receiving messages
-                Task { @MainActor in
-                    self.receiveMessage()
+                // Continue receiving messages only if webSocket is still active
+                if self.webSocket != nil {
+                    Task { @MainActor in
+                        self.receiveMessage()
+                    }
                 }
                 
             case .failure(let error):
-                print("WebSocket receive error: \(error)")
+                print("[TranscriptionViewModel] WebSocket receive error: \(error)")
                 Task { @MainActor in
                     self.error = error
                 }
@@ -161,6 +169,17 @@ class TranscriptionViewModel: ObservableObject {
             isTranscribing = false
             throw error
         }
+    }
+    
+    // Public cleanup method that can be called from outside
+    func cleanupResources() {
+        print("[TranscriptionViewModel] Cleanup called")
+        isTranscribing = false
+        transcriptionStatus = nil
+        transcriptionText = nil
+        transcriptionProgress = 0
+        error = nil
+        disconnectWebSocket()
     }
 }
 

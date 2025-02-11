@@ -72,17 +72,36 @@ struct Video: Identifiable, Codable, Equatable {
     }
     
     static func == (lhs: Video, rhs: Video) -> Bool {
-        lhs.id == rhs.id &&
-        lhs.title == rhs.title &&
-        lhs.description == rhs.description &&
-        lhs.videoUrl == rhs.videoUrl &&
-        lhs.creatorId == rhs.creatorId &&
-        lhs.createdAt == rhs.createdAt &&
-        lhs.likeCount == rhs.likeCount &&
-        lhs.commentCount == rhs.commentCount &&
-        lhs.isLiked == rhs.isLiked &&
-        lhs.viewCount == rhs.viewCount &&
-        lhs.transcriptionStatus == rhs.transcriptionStatus &&
-        lhs.transcriptionText == rhs.transcriptionText
+        return lhs.id == rhs.id &&
+            lhs.title == rhs.title &&
+            lhs.description == rhs.description &&
+            lhs.videoUrl == rhs.videoUrl &&
+            lhs.creatorId == rhs.creatorId &&
+            lhs.createdAt == rhs.createdAt &&
+            lhs.likeCount == rhs.likeCount &&
+            lhs.commentCount == rhs.commentCount &&
+            lhs.isLiked == rhs.isLiked &&
+            lhs.viewCount == rhs.viewCount &&
+            lhs.transcriptionStatus == rhs.transcriptionStatus &&
+            lhs.transcriptionText == rhs.transcriptionText
+    }
+}
+
+extension Video {
+    static var mock: Video {
+        Video(
+            id: "mockId",
+            title: "Mock Video",
+            description: "A mock video for testing",
+            videoUrl: "https://example.com/video.mp4",
+            creatorId: "mockCreatorId",
+            createdAt: Date(),
+            likeCount: 0,
+            commentCount: 0,
+            isLiked: false,
+            viewCount: 0,
+            transcriptionStatus: "completed",
+            transcriptionText: "This is a mock transcription text for testing purposes."
+        )
     }
 } 

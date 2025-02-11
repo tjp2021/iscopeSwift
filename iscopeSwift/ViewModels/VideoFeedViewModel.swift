@@ -77,7 +77,15 @@ class VideoFeedViewModel: ObservableObject {
             // First, decode the basic video data
             var videos = snapshot.documents.compactMap { document -> Video? in
                 let data = document.data()
-                return Video(
+                let transcriptionStatus = data["transcriptionStatus"] as? String
+                let transcriptionText = data["transcriptionText"] as? String
+                
+                print("[VideoFeedViewModel] Video \(document.documentID):")
+                print("  - Raw Data: \(data)")
+                print("  - Transcription Status: \(String(describing: transcriptionStatus))")
+                print("  - Transcription Text: \(String(describing: transcriptionText))")
+                
+                var video = Video(
                     id: document.documentID,
                     title: data["title"] as? String ?? "",
                     description: data["description"] as? String ?? "",
@@ -86,53 +94,125 @@ class VideoFeedViewModel: ObservableObject {
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     likeCount: data["likeCount"] as? Int ?? 0,
                     commentCount: data["commentCount"] as? Int ?? 0,
-                    isLiked: false, // Default value
+                    isLiked: false,
                     viewCount: data["viewCount"] as? Int ?? 0,
-                    transcriptionStatus: data["transcriptionStatus"] as? String,
-                    transcriptionText: data["transcriptionText"] as? String
+                    transcriptionStatus: transcriptionStatus,
+                    transcriptionText: transcriptionText
                 )
+                
+                // Verify the video object was created correctly
+                print("[VideoFeedViewModel] Created video object:")
+                print("  - ID: \(String(describing: video.id))")
+                print("  - Status: \(String(describing: video.transcriptionStatus))")
+                print("  - Text: \(String(describing: video.transcriptionText))")
+                
+                return video
             }
             
             // Then, if user is logged in, fetch like status for each video
             if let userId = Auth.auth().currentUser?.uid {
                 print("[VideoFeedViewModel] Fetching like status for user: \(userId)")
-                await withTaskGroup(of: (String, Bool).self) { group in
-                    for video in videos {
-                        group.addTask {
-                            let likeDoc = try? await self.db.collection("videos")
-                                .document(video.id ?? "")
-                                .collection("likes")
-                                .document(userId)
-                                .getDocument()
-                            return (video.id ?? "", likeDoc?.exists ?? false)
-                        }
-                    }
-                    
-                    var likeStatuses: [String: Bool] = [:]
-                    for await (videoId, isLiked) in group {
-                        likeStatuses[videoId] = isLiked
-                    }
-                    
-                    // Update videos with like status
-                    videos = videos.map { video in
-                        var updatedVideo = video
-                        updatedVideo.isLiked = likeStatuses[video.id ?? ""] ?? false
-                        return updatedVideo
+                for i in 0..<videos.count {
+                    if let videoId = videos[i].id {
+                        let likeDoc = try? await db.collection("videos")
+                            .document(videoId)
+                            .collection("likes")
+                            .document(userId)
+                            .getDocument()
+                        videos[i].isLiked = likeDoc?.exists ?? false
                     }
                 }
             }
             
-            await MainActor.run {
-                self.videos = videos
-            }
-            
             print("[VideoFeedViewModel] Successfully processed \(videos.count) videos")
+            self.videos = videos
+            
+            // Set up real-time listeners for transcription updates
+            setupTranscriptionListeners()
+            
         } catch {
-            print("[VideoFeedViewModel] Error fetching videos: \(error)")
-            await MainActor.run {
-                self.error = error.localizedDescription
-            }
+            print("[VideoFeedViewModel] Error fetching videos: \(error.localizedDescription)")
+            self.error = error.localizedDescription
         }
+    }
+    
+    private func setupTranscriptionListeners() {
+        print("[VideoFeedViewModel] Setting up transcription listeners")
+        
+        // Remove any existing listeners
+        for listener in transcriptionListeners.values {
+            listener.remove()
+        }
+        transcriptionListeners.removeAll()
+        
+        // Set up new listeners for each video
+        for video in videos {
+            guard let videoId = video.id else { continue }
+            
+            print("[VideoFeedViewModel] Setting up listener for video: \(videoId)")
+            print("  - Current Status: \(String(describing: video.transcriptionStatus))")
+            print("  - Current Text: \(String(describing: video.transcriptionText))")
+            
+            let listener = db.collection("videos").document(videoId)
+                .addSnapshotListener { [weak self] documentSnapshot, error in
+                    guard let self = self else { return }
+                    
+                    if let error = error {
+                        print("[VideoFeedViewModel] Error listening to video \(videoId): \(error)")
+                        return
+                    }
+                    
+                    guard let document = documentSnapshot, document.exists else {
+                        print("[VideoFeedViewModel] Document does not exist for video \(videoId)")
+                        return
+                    }
+                    
+                    let data = document.data() ?? [:]
+                    print("[VideoFeedViewModel] Received update for video \(videoId):")
+                    print("  - Raw Data: \(data)")
+                    
+                    let transcriptionStatus = data["transcriptionStatus"] as? String
+                    let transcriptionText = data["transcriptionText"] as? String
+                    
+                    print("  - Status: \(String(describing: transcriptionStatus))")
+                    print("  - Text: \(String(describing: transcriptionText))")
+                    
+                    if let index = self.videos.firstIndex(where: { $0.id == videoId }) {
+                        print("[VideoFeedViewModel] Updating video at index: \(index)")
+                        
+                        Task { @MainActor in
+                            // Create a new video instance with updated values
+                            var updatedVideo = self.videos[index]
+                            updatedVideo.transcriptionStatus = transcriptionStatus
+                            updatedVideo.transcriptionText = transcriptionText
+                            
+                            // Update the videos array
+                            self.videos[index] = updatedVideo
+                            
+                            print("[VideoFeedViewModel] Video updated successfully")
+                            print("  - ID: \(videoId)")
+                            print("  - New Status: \(String(describing: updatedVideo.transcriptionStatus))")
+                            print("  - New Text: \(String(describing: updatedVideo.transcriptionText))")
+                        }
+                    } else {
+                        print("[VideoFeedViewModel] Could not find video with ID: \(videoId)")
+                    }
+                }
+            
+            transcriptionListeners[videoId] = listener
+        }
+        
+        print("[VideoFeedViewModel] Finished setting up \(transcriptionListeners.count) listeners")
+    }
+    
+    private var transcriptionListeners: [String: ListenerRegistration] = [:]
+    
+    deinit {
+        // Clean up listeners
+        for listener in transcriptionListeners.values {
+            listener.remove()
+        }
+        transcriptionListeners.removeAll()
     }
     
     func fetchMoreVideos() async {

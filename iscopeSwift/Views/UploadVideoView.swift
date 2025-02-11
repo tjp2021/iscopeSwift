@@ -16,6 +16,7 @@ struct UploadVideoView: View {
     @State private var isShowingPreview = false
     @State private var previewURL: URL? = nil
     @State private var currentVideoId: String? = nil
+    @State private var shouldDismiss = false
     
     var body: some View {
         NavigationView {
@@ -75,7 +76,7 @@ struct UploadVideoView: View {
             }
             .alert("Upload Status", isPresented: $showAlert) {
                 Button("OK") {
-                    if !alertMessage.contains("Error") && !transcriptionViewModel.isTranscribing {
+                    if shouldDismiss {
                         dismiss()
                     }
                 }
@@ -85,6 +86,10 @@ struct UploadVideoView: View {
             .onChange(of: selectedItem) { oldValue, newValue in
                 handleSelectedVideo()
             }
+        }
+        .onDisappear {
+            // Cleanup TranscriptionViewModel
+            transcriptionViewModel.cleanupResources()
         }
     }
     
@@ -119,8 +124,6 @@ struct UploadVideoView: View {
         
         do {
             let (videoUrl, videoId) = try await viewModel.uploadVideo(item: item, title: title, description: description)
-            
-            // Store the videoId for transcription progress
             currentVideoId = videoId
             
             // Start transcription process
@@ -129,21 +132,22 @@ struct UploadVideoView: View {
                     try await transcriptionViewModel.startTranscription(videoUrl: videoUrl, videoId: videoId)
                 } catch {
                     print("Transcription error: \(error)")
+                    alertMessage = "Error during transcription: \(error.localizedDescription)"
+                    showAlert = true
+                    return
                 }
             }
             
             // Refresh the feed after successful upload
             await feedViewModel.refreshVideos()
             
-            await MainActor.run {
-                alertMessage = "Video uploaded successfully! Transcription in progress..."
-                showAlert = true
-            }
+            alertMessage = "Video uploaded successfully! Transcription in progress..."
+            showAlert = true
+            shouldDismiss = true
+            
         } catch {
-            await MainActor.run {
-                alertMessage = "Error uploading video: \(error.localizedDescription)"
-                showAlert = true
-            }
+            alertMessage = "Error uploading video: \(error.localizedDescription)"
+            showAlert = true
         }
     }
 } 

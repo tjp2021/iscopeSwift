@@ -157,7 +157,9 @@ class UploadViewModel: ObservableObject {
             description: description,
             videoUrl: s3URL,
             creatorId: userId,
-            createdAt: Date()
+            createdAt: Date(),
+            transcriptionStatus: "pending",  // Set initial status
+            transcriptionText: nil          // No text yet
         )
         
         try db.collection("videos").document(videoId).setData(from: video)

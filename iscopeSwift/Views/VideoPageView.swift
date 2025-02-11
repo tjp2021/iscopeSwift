@@ -131,6 +131,97 @@ class VideoPlayerManager: NSObject, ObservableObject {
     }
 }
 
+#if DEBUG
+// Debug overlay component
+private struct DebugOverlay: View {
+    let showCaptions: Bool
+    let transcriptionStatus: String?
+    let transcriptionText: String?
+    
+    var body: some View {
+        VStack {
+            Text("Show Captions: \(showCaptions ? "true" : "false")")
+                .foregroundColor(.white)
+            Text("Status: \(transcriptionStatus ?? "nil")")
+                .foregroundColor(.white)
+            if let text = transcriptionText {
+                Text("Has Text: true (\(text.prefix(20))...)")
+                    .foregroundColor(.white)
+            } else {
+                Text("Has Text: false")
+                    .foregroundColor(.white)
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.5))
+    }
+}
+#endif
+
+// Captions overlay component
+private struct CaptionsOverlay: View {
+    let transcriptionText: String?
+    
+    var body: some View {
+        if let text = transcriptionText {
+            Text(text)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .background(Color.black.opacity(0.7))
+                .cornerRadius(8)
+                .padding(.horizontal)
+                .padding(.bottom, 120)
+                .transition(.opacity)
+        }
+    }
+}
+
+// Loading overlay component
+private struct LoadingOverlay: View {
+    var body: some View {
+        ZStack {
+            Color.black
+            ProgressView()
+                .tint(.white)
+        }
+    }
+}
+
+// Error overlay component
+private struct ErrorOverlay: View {
+    let errorMessage: String?
+    let isRetrying: Bool
+    let retryAction: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 48))
+                .foregroundColor(.white)
+            Text(errorMessage ?? "Failed to load video")
+                .font(.headline)
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+            
+            if !isRetrying {
+                Button("Retry", action: retryAction)
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+            } else {
+                ProgressView()
+                    .tint(.white)
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.7))
+        .cornerRadius(12)
+    }
+}
+
 struct VideoPageView: View {
     @Binding var video: Video
     @ObservedObject var viewModel: VideoFeedViewModel
@@ -142,6 +233,7 @@ struct VideoPageView: View {
     @State private var isVisible = false
     @State private var showingComments = false
     @State private var showingTranscription = false
+    @State private var showCaptions = true
     
     var body: some View {
         GeometryReader { geometry in
@@ -152,68 +244,54 @@ struct VideoPageView: View {
                         .edgesIgnoringSafeArea(.all)
                         .overlay(alignment: .bottom) {
                             VStack(spacing: 0) {
-                                // Live captions overlay
-                                if let transcriptionText = video.transcriptionText {
-                                    Text(transcriptionText)
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .padding(8)
-                                        .background(Color.black.opacity(0.6))
-                                        .cornerRadius(8)
-                                        .padding(.horizontal)
-                                        .padding(.bottom, 100) // Add padding to avoid overlap with controls
+                                #if DEBUG
+                                DebugOverlay(
+                                    showCaptions: showCaptions,
+                                    transcriptionStatus: video.transcriptionStatus,
+                                    transcriptionText: video.transcriptionText
+                                )
+                                #endif
+                                
+                                if showCaptions {
+                                    CaptionsOverlay(transcriptionText: video.transcriptionText)
+                                        .animation(.easeInOut, value: showCaptions)
                                 }
                                 
                                 overlayContent
                             }
                         }
                         .overlay(alignment: .trailing) {
-                            VideoEngagementView(video: $video, viewModel: viewModel)
+                            VideoEngagementView(video: $video, viewModel: viewModel, showCaptions: $showCaptions)
                                 .padding(.trailing, 16)
                                 .padding(.bottom, 16)
                         }
                 }
                 
                 if playerManager.isLoading && !isRetrying {
-                    ZStack {
-                        Color.black
-                        ProgressView()
-                            .tint(.white)
-                    }
+                    LoadingOverlay()
                 }
                 
                 if showError {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 48))
-                            .foregroundColor(.white)
-                        Text(errorMessage ?? "Failed to load video")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
-                        
-                        if !isRetrying {
-                            Button("Retry") {
-                                retryLoading()
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.white)
-                        } else {
-                            ProgressView()
-                                .tint(.white)
-                        }
-                    }
-                    .padding()
-                    .background(Color.black.opacity(0.7))
-                    .cornerRadius(12)
+                    ErrorOverlay(
+                        errorMessage: errorMessage,
+                        isRetrying: isRetrying,
+                        retryAction: retryLoading
+                    )
                 }
             }
         }
+        .background(Color.black)
         .onAppear {
+            print("[VideoPageView] View appeared")
+            print("[VideoPageView] Initial showCaptions state: \(showCaptions)")
+            print("[VideoPageView] Video ID: \(String(describing: video.id))")
+            print("[VideoPageView] Transcription status: \(String(describing: video.transcriptionStatus))")
+            print("[VideoPageView] Transcription text: \(String(describing: video.transcriptionText))")
             isVisible = true
             setupVideo()
         }
         .onDisappear {
+            print("[VideoPageView] View disappeared")
             isVisible = false
             cleanup()
         }
@@ -225,8 +303,17 @@ struct VideoPageView: View {
                 showError = false
             }
         }
-        .onChange(of: viewModel.isMuted) { oldValue, newValue in
-            player?.isMuted = newValue
+        .onChange(of: viewModel.isMuted) { _, isMuted in
+            player?.isMuted = isMuted
+        }
+        .onChange(of: showCaptions) { _, newValue in
+            print("[VideoPageView] showCaptions changed to: \(newValue)")
+        }
+        .onChange(of: video.transcriptionText) { _, newValue in
+            print("[VideoPageView] Transcription text updated: \(String(describing: newValue))")
+        }
+        .onChange(of: video.transcriptionStatus) { _, newValue in
+            print("[VideoPageView] Transcription status updated: \(String(describing: newValue))")
         }
         .sheet(isPresented: $showingComments) {
             CommentsView(video: .constant(video))

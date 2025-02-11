@@ -9,13 +9,23 @@ import { exec } from 'child_process';
 import https from 'https';
 import fetch from 'node-fetch';
 import FormData from 'form-data';
-const admin = require('firebase-admin');
+import { initializeApp, applicationDefault, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 console.log('Starting server initialization...');
 
 // Load environment variables
 dotenv.config();
 console.log('Environment variables loaded');
+
+// Initialize Firebase Admin
+console.log('Initializing Firebase Admin...');
+initializeApp({
+    credential: cert('./serviceAccountKey.json')
+});
+console.log('Firebase Admin initialized');
+
+const db = getFirestore();
 
 // Verify OpenAI API key
 if (!process.env.OPENAI_API_KEY) {
@@ -166,17 +176,17 @@ const server = http.createServer(async (req, res) => {
                     const { videoUrl, videoId } = JSON.parse(body);
                     console.log('Processing video from URL:', videoUrl);
                     
+                    // Set initial transcription status
+                    await db.collection('videos').doc(videoId).update({
+                        transcriptionStatus: 'pending',
+                        transcriptionText: null
+                    });
+                    
                     // Use the new processTranscription function
                     const transcription = await processTranscription(videoUrl, videoId);
                     
-                    // Update Firestore with transcription
-                    if (!admin.apps.length) {
-                        admin.initializeApp({
-                            credential: admin.credential.applicationDefault()
-                        });
-                    }
-
-                    await admin.firestore().collection('videos').doc(videoId).update({
+                    // Update Firestore with completed transcription
+                    await db.collection('videos').doc(videoId).update({
                         transcriptionStatus: 'completed',
                         transcriptionText: transcription.text
                     });
@@ -192,6 +202,17 @@ const server = http.createServer(async (req, res) => {
                 } catch (error) {
                     console.error('Transcription error:', error);
                     console.error('Error stack:', error.stack);
+                    
+                    // Update Firestore with failed status
+                    try {
+                        await db.collection('videos').doc(videoId).update({
+                            transcriptionStatus: 'failed',
+                            transcriptionText: null
+                        });
+                    } catch (updateError) {
+                        console.error('Failed to update error status:', updateError);
+                    }
+                    
                     res.writeHead(500, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ 
                         error: 'Transcription failed',

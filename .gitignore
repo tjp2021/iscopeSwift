@@ -148,3 +148,6 @@ GoogleService-Info.plist
 
 # Node modules for server
 node_modules/
+
+# Firebase Admin SDK
+server/serviceAccountKey.json
