@@ -244,14 +244,6 @@ struct VideoPageView: View {
                         .edgesIgnoringSafeArea(.all)
                         .overlay(alignment: .bottom) {
                             VStack(spacing: 0) {
-                                #if DEBUG
-                                DebugOverlay(
-                                    showCaptions: showCaptions,
-                                    transcriptionStatus: video.transcriptionStatus,
-                                    transcriptionText: video.transcriptionText
-                                )
-                                #endif
-                                
                                 if showCaptions {
                                     CaptionsOverlay(transcriptionText: video.transcriptionText)
                                         .animation(.easeInOut, value: showCaptions)
