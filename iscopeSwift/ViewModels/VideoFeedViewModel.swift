@@ -108,15 +108,20 @@ class VideoFeedViewModel: ObservableObject {
     
     func fetchVideos() async {
         do {
-            print("[VideoFeedViewModel] Fetching videos...")
             let snapshot = try await db.collection("videos")
                 .order(by: "createdAt", descending: true)
                 .getDocuments()
             
             let videos = snapshot.documents.compactMap { document -> Video? in
                 let data = document.data()
-                let url = data["videoUrl"] as? String ?? ""
-                print("[VideoFeedViewModel] Found video with URL: \(url)")
+                let url = data["url"] as? String ?? data["videoUrl"] as? String ?? ""
+                print("[DEBUG] Video URL from Firestore: \(url) for video ID: \(document.documentID)")
+                
+                guard !url.isEmpty else {
+                    print("[DEBUG] Skipping video with empty URL: \(document.documentID)")
+                    return nil
+                }
+                
                 return Video(
                     id: document.documentID,
                     userId: data["userId"] as? String ?? "",
@@ -134,8 +139,7 @@ class VideoFeedViewModel: ObservableObject {
                 )
             }
             
-            print("[VideoFeedViewModel] Fetched \(videos.count) videos")
-            
+            print("[DEBUG] Fetched \(videos.count) valid videos with URLs")
             self.videos = videos
             self.lastDocument = snapshot.documents.last
             self.error = nil
@@ -143,53 +147,32 @@ class VideoFeedViewModel: ObservableObject {
             setupTranscriptionListeners()
             
         } catch {
-            print("[VideoFeedViewModel] Error: \(error.localizedDescription)")
+            print("[ERROR] Failed to fetch videos: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
     
     private func setupTranscriptionListeners() {
-        print("[VideoFeedViewModel] Setting up transcription listeners")
         for listener in transcriptionListeners.values {
             listener.remove()
         }
         transcriptionListeners.removeAll()
         
         for video in videos {
-            print("[VideoFeedViewModel] Setting up listener for video \(video.id)")
             let listener = db.collection("videos").document(video.id)
                 .addSnapshotListener { [weak self] documentSnapshot, error in
-                    guard let self = self else { 
-                        print("[VideoFeedViewModel] Self is nil in listener")
-                        return 
-                    }
+                    guard let self = self else { return }
                     
                     if let error = error {
-                        print("[VideoFeedViewModel] Listener error for video \(video.id): \(error)")
                         self.error = error.localizedDescription
                         return
                     }
                     
-                    guard let document = documentSnapshot, document.exists else {
-                        print("[VideoFeedViewModel] No document found for video \(video.id)")
-                        return
-                    }
+                    guard let document = documentSnapshot, document.exists else { return }
                     
                     let data = document.data() ?? [:]
-                    print("[VideoFeedViewModel] Received update for video \(video.id)")
-                    print("[VideoFeedViewModel] Transcription status: \(data["transcriptionStatus"] as? String ?? "nil")")
-                    
                     let transcriptionStatus = data["transcriptionStatus"] as? String
                     let transcriptionText = data["transcriptionText"] as? String
-                    
-                    // Debug raw transcription segments data
-                    if let rawSegments = try? document.get("transcriptionSegments") {
-                        print("[VideoFeedViewModel] Raw segments type: \(type(of: rawSegments))")
-                        print("[VideoFeedViewModel] Raw segments: \(rawSegments)")
-                    } else {
-                        print("[VideoFeedViewModel] No raw segments found in document")
-                    }
-                    
                     let transcriptionSegments = try? document.get("transcriptionSegments") as? [[String: Any]]
                     
                     if let index = self.videos.firstIndex(where: { $0.id == video.id }) {
@@ -199,7 +182,6 @@ class VideoFeedViewModel: ObservableObject {
                             updatedVideo.transcriptionText = transcriptionText
                             
                             if let segments = transcriptionSegments {
-                                print("[VideoFeedViewModel] Processing \(segments.count) segments for video \(video.id)")
                                 var parsedSegments: [TranscriptionSegment] = []
                                 
                                 for segmentData in segments {
@@ -213,29 +195,19 @@ class VideoFeedViewModel: ObservableObject {
                                             words: nil
                                         )
                                         parsedSegments.append(segment)
-                                        print("[VideoFeedViewModel] Parsed segment - text: \(text), time: \(startTime)-\(endTime)")
-                                    } else {
-                                        print("[VideoFeedViewModel] Failed to parse segment: \(segmentData)")
                                     }
                                 }
                                 
-                                print("[VideoFeedViewModel] Successfully parsed \(parsedSegments.count) segments")
                                 updatedVideo.transcriptionSegments = parsedSegments
-                            } else {
-                                print("[VideoFeedViewModel] No segments to process for video \(video.id)")
                             }
                             
-                            print("[VideoFeedViewModel] Updating video in array with \(updatedVideo.transcriptionSegments?.count ?? 0) segments")
                             self.videos[index] = updatedVideo
                         }
-                    } else {
-                        print("[VideoFeedViewModel] Could not find video \(video.id) in videos array")
                     }
                 }
             
             transcriptionListeners[video.id] = listener
         }
-        print("[VideoFeedViewModel] Finished setting up \(transcriptionListeners.count) listeners")
     }
     
     deinit {
@@ -307,7 +279,6 @@ class VideoFeedViewModel: ObservableObject {
     
     #if DEBUG
     func seedTestData() async {
-        print("[VideoFeedViewModel] Seeding test data...")
         let testVideos = [
             Video(
                 id: UUID().uuidString,
@@ -345,18 +316,14 @@ class VideoFeedViewModel: ObservableObject {
             for video in testVideos {
                 let data = createVideoData(video)
                 try await db.collection("videos").document(video.id).setData(data)
-                print("[VideoFeedViewModel] Adding test video with URL: \(video.url)")
             }
-            print("[VideoFeedViewModel] Test data seeded successfully")
             await fetchVideos()
         } catch {
-            print("[VideoFeedViewModel] Error seeding test data: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
     
     func verifyAndSeedTestData() async {
-        print("[VideoFeedViewModel] Verifying videos...")
         let snapshot = try? await db.collection("videos").getDocuments()
         let hasValidVideos = snapshot?.documents.contains { doc in
             let data = doc.data()
@@ -364,31 +331,23 @@ class VideoFeedViewModel: ObservableObject {
         } ?? false
         
         if !hasValidVideos {
-            print("[VideoFeedViewModel] No valid videos found, seeding test data...")
             await seedTestData()
-        } else {
-            print("[VideoFeedViewModel] Valid videos found, skipping test data seeding")
         }
     }
     
     func clearAllVideos() async {
-        print("[VideoFeedViewModel] Clearing all videos from database...")
         do {
             let snapshot = try await db.collection("videos").getDocuments()
             for document in snapshot.documents {
-                print("[VideoFeedViewModel] Deleting video: \(document.documentID)")
                 try await document.reference.delete()
             }
-            print("[VideoFeedViewModel] Successfully cleared all videos")
             self.videos = []
         } catch {
-            print("[VideoFeedViewModel] Error clearing videos: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
 
     func resetAndSeedTestData() async {
-        print("[VideoFeedViewModel] Starting database reset and seed...")
         await clearAllVideos()
         await seedTestData()
     }

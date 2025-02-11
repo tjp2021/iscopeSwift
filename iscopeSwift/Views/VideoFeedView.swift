@@ -13,6 +13,7 @@ struct VideoFeedView: View {
     @State private var currentIndex = 0
     @State private var showingProfile = false
     @State private var showResetConfirmation = false
+    @State private var showClearConfirmation = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -54,6 +55,11 @@ struct VideoFeedView: View {
                         Text("No videos available")
                             .font(.headline)
                             .foregroundColor(.white)
+                        Button("Clear All Videos") {
+                            showClearConfirmation = true
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
                         Button("Refresh") {
                             Task {
                                 await viewModel.refreshVideos()
@@ -69,7 +75,6 @@ struct VideoFeedView: View {
                         .tint(.white)
                 }
                 
-                // Settings gear icon in top-right corner
                 VStack {
                     HStack {
                         Spacer()
@@ -104,7 +109,6 @@ struct VideoFeedView: View {
             MyVideosView()
         }
         .task {
-            print("[VideoFeedView] Task started - Fetching videos")
             await viewModel.fetchVideos()
         }
         .alert("Error", isPresented: $showError) {
@@ -112,21 +116,15 @@ struct VideoFeedView: View {
         } message: {
             Text(viewModel.error ?? "An unknown error occurred")
         }
-        .alert("Reset Videos", isPresented: $showResetConfirmation) {
-            Button("Reset", role: .destructive) {
+        .alert("Clear All Videos", isPresented: $showClearConfirmation) {
+            Button("Clear", role: .destructive) {
                 Task {
-                    await viewModel.resetAndSeedTestData()
+                    await viewModel.clearAllVideos()
                 }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will delete all existing videos and add test videos. Are you sure?")
-        }
-        .onAppear {
-            print("[VideoFeedView] View appeared")
-        }
-        .onDisappear {
-            print("[VideoFeedView] View disappeared")
+            Text("This will permanently delete all videos. Are you sure?")
         }
     }
 } 

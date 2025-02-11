@@ -71,11 +71,11 @@
   - [ ] Implement search highlighting
   - [ ] Add search filters
 
-- [x] Video Integration
-  - [x] Link timestamps to text
-  - [x] Implement video seeking
-  - [x] Add preview thumbnails
-  - [x] Handle seeking errors
+- [ ] Video Integration
+  - [ ] Link timestamps to text
+  - [ ] Implement video seeking
+  - [ ] Add preview thumbnails
+  - [ ] Handle seeking errors
 
 ### 5. Transcript Export
 - [ ] Export Options
@@ -84,11 +84,11 @@
   - [ ] Support multiple formats
   - [ ] Add export settings
 
-- [x] Share Implementation
-  - [x] Add share sheet integration
-  - [x] Implement file sharing
+- [ ] Share Implementation
+  - [ ] Add share sheet integration
+  - [ ] Implement file sharing
   - [ ] Add export analytics
-  - [x] Handle export errors
+  - [ ] Handle export errors
 
 ## Feature Set 2: AI Translation + Subtitling 🌐
 
@@ -121,13 +121,13 @@
 ### 8. Caption Playback
 - [ ] Video Player
   - [x] Implement custom player
-  - [ ] Add subtitle rendering
+  - [ ] Add subtitle rendering (In Progress - Not Working)
   - [ ] Support multiple tracks
   - [x] Add playback controls
 
 - [ ] Subtitle Display
   - [ ] Add style options
-  - [x] Implement basic positioning
+  - [ ] Implement basic positioning
   - [ ] Add font selection
   - [ ] Support custom styles
 
@@ -145,17 +145,17 @@
   - [ ] Handle track sync
 
 ### 10. Subtitle Customization
-- [x] Style Editor
-  - [x] Add font controls
-  - [x] Implement color picker
-  - [x] Add position controls
-  - [x] Support presets
+- [ ] Style Editor
+  - [ ] Add font controls
+  - [ ] Implement color picker
+  - [ ] Add position controls
+  - [ ] Support presets
 
-- [x] Timing Tools
-  - [x] Add timing adjustment
-  - [x] Implement sync tools
-  - [x] Add batch editing
-  - [x] Support time shifting
+- [ ] Timing Tools
+  - [ ] Add timing adjustment
+  - [ ] Implement sync tools
+  - [ ] Add batch editing
+  - [ ] Support time shifting
 
 ## Infrastructure & DevOps 🛠️
 
@@ -190,22 +190,26 @@
 ## Progress Tracking 📊
 
 ### Completed Features
-- Total Features: 2/5 Core Features
-- Core Features: 2/3 (Speech-to-Text, Progress Indicator)
-- Advanced Features: 0/2 (Search, Export)
+- Total Features: 3/10 Core Features
+- Core Features: 2/5 (Speech-to-Text, Progress Indicator)
+- Advanced Features: 1/5 (File Management)
 
 ### Current Sprint Focus
 - [x] Feature 1: Speech-to-Text
 - [x] Feature 2: Progress Indicator
-- [ ] Feature 3: Caption Playback (Partial - Only displays first line)
-- [ ] Feature 4: Search Implementation
+- [ ] Feature 3: Caption Playback (Not Working - Video and Captions)
+- [ ] Feature 4: Subtitle Generation
+- [ ] Feature 5: Style Editor
+- [ ] Feature 6: Timing Tools
 
 ### Next Up
-- Feature 4: Search Implementation
-- Feature 5: Export Functionality
+- Fix Feature 3: Video Playback and Caption Display
+- Feature 4: Subtitle Generation
+- Feature 5: Style Editor
+- Feature 6: Timing Tools
 
 ### Notes
 - Priority: High
 - Timeline: Q1 2024
 - Dependencies: iOS 15+, Swift 5.5+
-- Current Status: Core transcription working, captions need improvement (currently only showing first line), then moving to search and export features 
+- Current Status: Core transcription working but video playback and captions not rendering properly. Need to fix video player and caption display before moving forward. 

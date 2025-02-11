@@ -979,3 +979,87 @@ Anti-Patterns to Avoid:
 2. Inconsistent optional handling
 3. Missing cleanup
 4. Direct property access without proper binding 
+
+# Presigned_URL_Fix_Analysis
+
+## Problem/Feature Overview
+
+Initial Requirements:
+- Fix 403 Forbidden error during video transcription
+- Ensure proper URL handling between upload and download
+- Maintain secure access to S3 videos
+- Enable successful video transcription flow
+
+Key Challenges:
+- URL expiration timing mismatch
+- Proper handling of multiple presigned URLs
+- Maintaining security while enabling access
+- Coordinating client-server communication
+
+Success Criteria:
+- Successful video upload to S3
+- Proper storage of download URL in Firestore
+- Successful video transcription
+- No 403 Forbidden errors
+
+## Solution Attempts
+
+### Attempt #1
+- Approach: Using upload URL for everything
+- Implementation: Single presigned URL for both upload and transcription
+- Outcome: Failed with 403 error after 5 minutes
+- Learnings: Upload URLs expire too quickly for transcription
+
+### Attempt #2
+- Approach: Separate URLs for upload and download
+- Implementation: Generate and use distinct URLs with different expiration times
+- Outcome: Successful
+- Learnings: Need to properly propagate different URLs through the system
+
+## Final Solution
+
+Implementation Details:
+- Generate two presigned URLs on server:
+  - Upload URL (5 min expiration)
+  - Download URL (7 day expiration)
+- Use upload URL only for S3 upload
+- Store download URL in Firestore
+- Use download URL for transcription
+
+Why It Works:
+- Respects S3 security model
+- Provides sufficient time for transcription
+- Maintains clear separation of concerns
+- Follows proper URL lifecycle management
+
+Key Components:
+- Server-side URL generation
+- Client-side URL handling
+- Firestore integration
+- Transcription service integration
+
+## Key Lessons
+
+Technical Insights:
+- Presigned URLs need different expiration times for different uses
+- Clear separation between upload and download operations
+- Proper error handling is crucial
+- URL lifecycle management is important
+
+Process Improvements:
+- Better logging for debugging
+- Clear separation of URL types
+- Proper error propagation
+- Systematic testing approach
+
+Best Practices:
+- Use separate URLs for upload and download
+- Store long-lived URLs for async operations
+- Clear error handling and logging
+- Proper type safety and null checking
+
+Anti-Patterns to Avoid:
+- Reusing upload URLs for download
+- Ignoring URL expiration times
+- Missing error handling
+- Unclear URL lifecycle management 

@@ -8,15 +8,12 @@ class CaptionManager: ObservableObject {
     private var segments: [TranscriptionSegment] = []
     
     func updateSegments(_ segments: [TranscriptionSegment]?) {
-        print("[CaptionManager] Updating segments: \(segments?.count ?? 0) segments")
         self.segments = segments ?? []
     }
     
     func updateForTime(_ time: Double) {
-        // Find the segment that corresponds to the current time
         if let segment = segments.first(where: { time >= $0.startTime && time <= $0.endTime }) {
             if currentText != segment.text {
-                print("[CaptionManager] Updating caption at time \(time): \(segment.text)")
                 currentText = segment.text
             }
         } else {
@@ -40,23 +37,18 @@ class VideoPlayerManager: NSObject, ObservableObject {
     private var captionManager: CaptionManager?
     
     func setupPlayer(for url: URL, captionManager: CaptionManager) -> AVPlayer {
-        print("[VideoPlayerManager] Starting setup for URL: \(url)")
         cleanup()
         
         self.captionManager = captionManager
         
         let playerItem = AVPlayerItem(url: url)
-        print("[VideoPlayerManager] Created AVPlayerItem")
         playerItem.automaticallyPreservesTimeOffsetFromLive = true
         let newPlayer = AVPlayer(playerItem: playerItem)
-        print("[VideoPlayerManager] Created AVPlayer")
         
         // Enable background audio
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-            print("[VideoPlayerManager] Audio session setup successful")
         } catch {
-            print("[VideoPlayerManager] Audio session setup failed: \(error)")
             self.error = error
         }
         
@@ -66,7 +58,6 @@ class VideoPlayerManager: NSObject, ObservableObject {
             self?.currentTime = time.seconds
             self?.captionManager?.updateForTime(time.seconds)
         }
-        print("[VideoPlayerManager] Added periodic time observer")
         
         playerItem.addObserver(
             self,
@@ -74,7 +65,6 @@ class VideoPlayerManager: NSObject, ObservableObject {
             options: [.old, .new],
             context: &playerItemContext
         )
-        print("[VideoPlayerManager] Added status observer")
         
         // Add error observer
         NotificationCenter.default.addObserver(
@@ -83,11 +73,9 @@ class VideoPlayerManager: NSObject, ObservableObject {
             queue: .main
         ) { [weak self] notification in
             if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error {
-                print("[VideoPlayerManager] Failed to play to end: \(error)")
                 self?.error = error
             }
         }
-        print("[VideoPlayerManager] Added error observer")
         
         // Add playback ended observer
         NotificationCenter.default.addObserver(
@@ -95,14 +83,11 @@ class VideoPlayerManager: NSObject, ObservableObject {
             object: playerItem,
             queue: .main
         ) { [weak self] _ in
-            print("[VideoPlayerManager] Playback reached end, looping")
             newPlayer.seek(to: .zero)
             newPlayer.play()
         }
-        print("[VideoPlayerManager] Added end of playback observer")
         
         self.player = newPlayer
-        print("[VideoPlayerManager] Setup complete")
         return newPlayer
     }
     
@@ -116,31 +101,25 @@ class VideoPlayerManager: NSObject, ObservableObject {
             let status: AVPlayerItem.Status
             if let statusNumber = change?[.newKey] as? NSNumber {
                 status = AVPlayerItem.Status(rawValue: statusNumber.intValue)!
-                print("[VideoPlayerManager] Player status changed to: \(status.rawValue)")
             } else {
                 status = .unknown
-                print("[VideoPlayerManager] Player status unknown (no status number)")
             }
             
             DispatchQueue.main.async { [weak self] in
                 switch status {
                 case .readyToPlay:
-                    print("[VideoPlayerManager] Player is ready to play")
                     self?.isLoading = false
                     self?.error = nil
                     self?.player?.play()
                 case .failed:
                     if let error = self?.player?.currentItem?.error {
-                        print("[VideoPlayerManager] Player failed with error: \(error)")
                         self?.error = error
                     }
                     self?.isLoading = false
                 case .unknown:
-                    print("[VideoPlayerManager] Player status is unknown")
                     self?.isLoading = true
                     self?.error = nil
                 @unknown default:
-                    print("[VideoPlayerManager] Player status is in unexpected state")
                     self?.isLoading = false
                     self?.error = nil
                 }
@@ -149,31 +128,25 @@ class VideoPlayerManager: NSObject, ObservableObject {
     }
     
     func cleanup() {
-        print("[VideoPlayerManager] Starting cleanup")
         if let player = player {
             player.pause()
-            print("[VideoPlayerManager] Player paused")
             
             if let timeObserverToken = timeObserverToken {
                 player.removeTimeObserver(timeObserverToken)
                 self.timeObserverToken = nil
-                print("[VideoPlayerManager] Removed time observer")
             }
             
             player.currentItem?.removeObserver(self, forKeyPath: #keyPath(AVPlayerItem.status))
             NotificationCenter.default.removeObserver(self)
-            print("[VideoPlayerManager] Removed observers")
         }
         
         player = nil
         isLoading = true
         error = nil
         currentTime = 0
-        print("[VideoPlayerManager] Cleanup completed")
     }
     
     deinit {
-        print("[VideoPlayerManager] Deinitializing")
         cleanup()
     }
 }
@@ -212,17 +185,19 @@ private struct CaptionsOverlay: View {
     var body: some View {
         if !captionManager.currentText.isEmpty {
             Text(captionManager.currentText)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
                 .padding(.horizontal, 20)
-                .padding(.vertical, 8)
-                .background(Color.black.opacity(0.7))
-                .cornerRadius(8)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.black.opacity(0.75))
+                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                )
                 .padding(.horizontal)
-                .padding(.bottom, 120)
-                .transition(.opacity)
+                .padding(.bottom, 100)
+                .transition(.opacity.animation(.easeInOut(duration: 0.2)))
         }
     }
 }
@@ -436,8 +411,6 @@ struct VideoPageView: View {
         }
         .background(Color.black)
         .onAppear {
-            print("[VideoPageView] View appearing")
-            print("[VideoPageView] Video data: id=\(video.id), url=\(video.url)")
             isVisible = true
             captionManager.updateSegments(video.transcriptionSegments)
             setupVideo()
@@ -458,7 +431,6 @@ struct VideoPageView: View {
             player?.isMuted = isMuted
         }
         .onChange(of: video.transcriptionSegments) { _, newSegments in
-            print("[VideoPageView] Transcription segments updated")
             captionManager.updateSegments(newSegments)
         }
         .sheet(isPresented: $showingComments) {
@@ -473,64 +445,59 @@ struct VideoPageView: View {
     }
     
     private func setupVideo() {
-        print("[VideoPageView] Starting setupVideo() - isVisible: \(isVisible)")
-        print("[VideoPageView] Video object: id=\(video.id), title=\(video.title), url=\(video.url)")
+        guard isVisible else { return }
         
-        guard isVisible else {
-            print("[VideoPageView] Setup aborted - view not visible")
-            return
-        }
+        cleanup()
         
-        if video.url.isEmpty {
-            print("[VideoPageView] Setup failed - Empty URL string")
+        print("[DEBUG] Setting up video - URL: \(video.url)")
+        
+        guard !video.url.isEmpty else {
+            print("[ERROR] Video URL is empty for video ID: \(video.id)")
             errorMessage = "Video URL is empty"
             showError = true
             return
         }
         
         guard let url = URL(string: video.url) else {
-            print("[VideoPageView] Setup failed - Invalid URL: \(video.url)")
+            print("[ERROR] Invalid video URL format: \(video.url)")
             errorMessage = "Invalid video URL"
             showError = true
             return
         }
-        print("[VideoPageView] Video URL validated: \(url)")
         
-        // Check network connectivity
-        if !viewModel.isOnline {
-            print("[VideoPageView] Setup failed - No network connection")
+        guard viewModel.isOnline else {
+            print("[ERROR] No network connection while trying to play video: \(video.url)")
             errorMessage = "No internet connection. Please check your network settings."
             showError = true
             return
         }
-        print("[VideoPageView] Network connectivity confirmed")
         
-        // Use VideoPlayerManager to set up the player
-        print("[VideoPageView] Setting up player with VideoPlayerManager")
-        player = playerManager.setupPlayer(for: url, captionManager: captionManager)
-        player?.isMuted = viewModel.isMuted
-        print("[VideoPageView] Player setup complete - isMuted: \(viewModel.isMuted)")
-        player?.play()
-        print("[VideoPageView] Player.play() called")
+        DispatchQueue.main.async { [self] in
+            print("[DEBUG] Creating player for URL: \(url)")
+            player = playerManager.setupPlayer(for: url, captionManager: captionManager)
+            player?.isMuted = viewModel.isMuted
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                print("[DEBUG] Starting playback for URL: \(url)")
+                player?.play()
+            }
+        }
     }
     
     private func cleanup() {
-        print("[VideoPageView] Starting cleanup")
+        print("[DEBUG] Cleaning up video player")
         player?.pause()
         player = nil
         playerManager.cleanup()
-        print("[VideoPageView] Cleanup completed")
     }
     
     private func retryVideo() {
-        print("[VideoPageView] Starting video retry")
+        print("[DEBUG] Retrying video playback")
         isRetrying = true
         errorMessage = nil
         showError = false
         
-        // Add slight delay to show retry animation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            print("[VideoPageView] Executing retry after delay")
             isRetrying = false
             setupVideo()
         }
@@ -544,9 +511,13 @@ struct CustomVideoPlayer: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
-        controller.showsPlaybackControls = false
-        controller.videoGravity = .resizeAspectFill
+        controller.showsPlaybackControls = true
+        controller.videoGravity = .resizeAspect
         controller.allowsPictureInPicturePlayback = true
+        
+        player.actionAtItemEnd = .none
+        player.isMuted = false
+        
         return controller
     }
     
