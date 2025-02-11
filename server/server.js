@@ -367,14 +367,11 @@ async function compressVideo(inputBuffer) {
 // Helper function to create form data with proper headers
 async function createFormDataWithFile(buffer, filename = 'video.mp4') {
     const formData = new FormData();
-    formData.append('file', buffer, {
-        filename: filename,
-        contentType: 'video/mp4'
-    });
+    formData.append('file', buffer, { filename });
     formData.append('model', 'whisper-1');
     formData.append('language', 'en');
-    formData.append('response_format', 'json');
-    
+    formData.append('response_format', 'verbose_json');
+    formData.append('timestamp_granularities', ['word', 'segment']);
     return formData;
 }
 
@@ -392,10 +389,13 @@ async function streamFileToOpenAI(formData) {
 
     if (!response.ok) {
         const text = await response.text();
+        console.error('OpenAI API Error Response:', text);
         throw new Error(`OpenAI API error: ${response.status} ${text}`);
     }
 
-    return response.json();
+    const result = await response.json();
+    console.log('\nOpenAI Response Format:', Object.keys(result).join(', '));
+    return result;
 }
 
 // Helper function to retry failed requests
@@ -419,86 +419,90 @@ async function retryWithBackoff(operation, maxRetries = 5) {
 // Modify the transcription process to send progress updates
 async function processTranscription(videoUrl, videoId) {
     try {
-        console.log('\n=== Starting Transcription Process ===');
-        console.log(`🎥 Video URL: ${videoUrl}`);
-        console.log(`📝 Video ID: ${videoId}`);
+        console.log('\n=== Starting Transcription Process for Video ID:', videoId, '===');
         
         // Send initial progress
         broadcastTranscriptionProgress(videoId, 0);
         
-        // Fetch video
-        console.log('\n1️⃣ Fetching video from S3...');
+        // Fetch and process video (keeping logs minimal)
         const videoResponse = await fetch(videoUrl);
         if (!videoResponse.ok) {
-            console.error(`❌ Failed to fetch video: ${videoResponse.status} ${videoResponse.statusText}`);
             throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
         }
-        console.log('✅ Video fetched successfully');
-        console.log(`📊 Response status: ${videoResponse.status}`);
-        console.log(`📦 Content-Type: ${videoResponse.headers.get('content-type')}`);
-        console.log(`📦 Content-Length: ${videoResponse.headers.get('content-length')} bytes`);
         
-        broadcastTranscriptionProgress(videoId, 0.2);
-        
-        // Convert to buffer
-        console.log('\n2️⃣ Converting video to buffer...');
         const buffer = await videoResponse.arrayBuffer();
-        console.log('✅ Conversion complete');
-        console.log(`📊 Buffer size: ${buffer.byteLength} bytes`);
-        
-        broadcastTranscriptionProgress(videoId, 0.3);
-        
-        // Compress video using FFmpeg
-        console.log('\n3️⃣ Compressing video...');
         const compressedBuffer = await compressVideo(Buffer.from(buffer));
-        console.log(`📊 Compressed size: ${compressedBuffer.length} bytes`);
-        console.log(`📊 Compression ratio: ${((1 - compressedBuffer.length / buffer.byteLength) * 100).toFixed(2)}%`);
         
         broadcastTranscriptionProgress(videoId, 0.5);
         
-        // Create form data with proper headers
-        console.log('\n4️⃣ Starting OpenAI transcription...');
-        console.log('📡 Preparing OpenAI API request...');
-        
+        // Create form data and send to OpenAI
         const formData = await createFormDataWithFile(compressedBuffer);
+        console.log('📡 Sending request to OpenAI with timestamp_granularities enabled');
         
-        console.log('📡 Sending request to OpenAI...');
-        console.log('📊 Request details:');
-        console.log(`- Model: whisper-1`);
-        console.log(`- Language: en`);
-        console.log(`- File size: ${compressedBuffer.length} bytes`);
-        
-        // Use retryWithBackoff with the new streaming function
         const transcription = await retryWithBackoff(async () => {
             return await streamFileToOpenAI(formData);
         });
         
-        console.log('\n✅ Transcription successful!');
-        console.log(`📝 Transcription length: ${transcription.text.length} characters`);
-        console.log('=== Transcription Process Complete ===\n');
+        // Log transcription timing data
+        console.log('\n=== Transcription Timing Data ===');
+        console.log(`Total segments: ${transcription.segments?.length || 0}`);
+        
+        // Log sample of segments (first 2 for verification)
+        if (transcription.segments && transcription.segments.length > 0) {
+            console.log('\nSample segments:');
+            transcription.segments.slice(0, 2).forEach((segment, i) => {
+                console.log(`\nSegment ${i + 1}:`);
+                console.log(`Text: "${segment.text}"`);
+                console.log(`Time: ${segment.start}s -> ${segment.end}s`);
+                if (segment.words) {
+                    console.log('Word timing:');
+                    segment.words.forEach(word => {
+                        console.log(`- "${word.text}": ${word.start}s -> ${word.end}s`);
+                    });
+                }
+            });
+        }
+        
+        // Process segments and words
+        const segments = transcription.segments.map(segment => ({
+            text: segment.text,
+            startTime: segment.start,
+            endTime: segment.end,
+            words: segment.words ? segment.words.map(word => ({
+                text: word.text,
+                startTime: word.start,
+                endTime: word.end
+            })) : undefined
+        }));
+        
+        // Update Firestore
+        console.log('\nUpdating Firestore with timing data...');
+        await db.collection('videos').doc(videoId).update({
+            transcriptionStatus: 'completed',
+            transcriptionText: transcription.text,
+            transcriptionSegments: segments
+        });
+        console.log('✅ Firestore updated with timing data');
         
         broadcastTranscriptionProgress(videoId, 1);
         
-        return transcription;
+        return {
+            text: transcription.text,
+            segments: segments
+        };
     } catch (error) {
-        console.error('\n❌ Transcription Error:');
-        console.error('Error details:', {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            type: error.type,
-            status: error.status
-        });
+        console.error('\n❌ Transcription Error:', error.message);
         
-        if (error.cause) {
-            console.error('\nUnderlying cause:');
-            console.error('Cause details:', {
-                name: error.cause.name,
-                message: error.cause.message,
-                code: error.cause.code,
-                type: error.cause.type,
-                errno: error.cause.errno
+        // Update Firestore with failed status
+        try {
+            await db.collection('videos').doc(videoId).update({
+                transcriptionStatus: 'failed',
+                transcriptionText: null,
+                transcriptionSegments: null
             });
+            console.error('Status updated to failed in Firestore');
+        } catch (updateError) {
+            console.error('Failed to update error status in Firestore');
         }
         
         throw error;

@@ -128,7 +128,7 @@ struct CommentsView: View {
     
     init(video: Binding<Video>) {
         self._video = video
-        _viewModel = StateObject(wrappedValue: CommentsViewModel(videoId: video.wrappedValue.id ?? ""))
+        _viewModel = StateObject(wrappedValue: CommentsViewModel(videoId: video.wrappedValue.id))
     }
     
     var body: some View {

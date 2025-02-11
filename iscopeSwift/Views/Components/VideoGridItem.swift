@@ -98,7 +98,7 @@ struct VideoGridItem: View {
     }
     
     private func generateThumbnail() {
-        guard let videoUrl = URL(string: video.videoUrl) else { return }
+        guard let videoUrl = URL(string: video.url) else { return }
         
         let asset = AVURLAsset(url: videoUrl)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
@@ -120,7 +120,7 @@ struct VideoGridItem: View {
     }
     
     private func fetchDuration() {
-        guard let videoUrl = URL(string: video.videoUrl) else { return }
+        guard let videoUrl = URL(string: video.url) else { return }
         
         let asset = AVURLAsset(url: videoUrl)
         Task {
@@ -163,16 +163,19 @@ extension View {
 
 #Preview {
     VideoGridItem(video: Video(
-        id: "test",
+        id: "mockId",
+        userId: "mockUserId",
         title: "Test Video",
         description: "Test Description",
-        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-        creatorId: "test",
+        url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+        thumbnailUrl: "https://example.com/thumbnail.jpg",
         createdAt: Date(),
-        likeCount: 0,
-        commentCount: 0,
-        isLiked: false,
-        viewCount: 123
+        viewCount: 123,
+        likeCount: 45,
+        commentCount: 10,
+        transcriptionStatus: nil,
+        transcriptionText: nil,
+        transcriptionSegments: nil
     ))
     .frame(width: 150, height: 150)
 } 

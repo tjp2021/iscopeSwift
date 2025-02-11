@@ -2,6 +2,38 @@ import SwiftUI
 import PhotosUI
 import AVKit
 
+// Video Details Section Component
+private struct VideoDetailsSection: View {
+    @Binding var title: String
+    @Binding var description: String
+    @Binding var selectedItem: PhotosPickerItem?
+    
+    var body: some View {
+        Section(header: Text("Video Details")) {
+            TextField("Title", text: $title)
+            TextField("Description", text: $description)
+            
+            PhotosPicker(selection: $selectedItem,
+                       matching: .videos) {
+                Label("Select Video", systemImage: "video")
+            }
+        }
+    }
+}
+
+// Upload Progress Section Component
+private struct UploadProgressSection: View {
+    let progress: Double
+    
+    var body: some View {
+        Section {
+            ProgressView(value: progress) {
+                Text("Uploading... \(Int(progress * 100))%")
+            }
+        }
+    }
+}
+
 struct UploadVideoView: View {
     @StateObject private var viewModel = UploadViewModel()
     @StateObject private var transcriptionViewModel = TranscriptionViewModel()
@@ -10,7 +42,7 @@ struct UploadVideoView: View {
     
     @State private var title = ""
     @State private var description = ""
-    @State private var selectedItem: PhotosPickerItem? = nil
+    @State private var selectedItem: PhotosPickerItem?
     @State private var showAlert = false
     @State private var alertMessage = ""
     @State private var isShowingPreview = false
@@ -21,34 +53,14 @@ struct UploadVideoView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Video Details")) {
-                    TextField("Title", text: $title)
-                    TextField("Description", text: $description)
-                }
-                
-                Section(header: Text("Video Selection")) {
-                    PhotosPicker(selection: $selectedItem, matching: .videos) {
-                        HStack {
-                            Image(systemName: "video.fill")
-                            Text(selectedItem == nil ? "Select Video" : "Change Video")
-                        }
-                    }
-                    
-                    if let previewURL = previewURL {
-                        Button("Preview Video") {
-                            isShowingPreview = true
-                        }
-                        .sheet(isPresented: $isShowingPreview) {
-                            VideoPlayer(player: AVPlayer(url: previewURL))
-                                .ignoresSafeArea()
-                        }
-                    }
-                }
+                VideoDetailsSection(
+                    title: $title,
+                    description: $description,
+                    selectedItem: $selectedItem
+                )
                 
                 if viewModel.isUploading {
-                    Section {
-                        ProgressView("Uploading...", value: viewModel.uploadProgress, total: 1.0)
-                    }
+                    UploadProgressSection(progress: viewModel.uploadProgress)
                 }
                 
                 if let videoId = currentVideoId, transcriptionViewModel.isTranscribing {
@@ -61,6 +73,7 @@ struct UploadVideoView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
+                        cleanup()
                         dismiss()
                     }
                 }
@@ -68,7 +81,9 @@ struct UploadVideoView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Upload") {
                         Task {
-                            await handleUpload()
+                            if let item = selectedItem {
+                                await handleVideoSelection(item)
+                            }
                         }
                     }
                     .disabled(selectedItem == nil || title.isEmpty || viewModel.isUploading)
@@ -77,77 +92,59 @@ struct UploadVideoView: View {
             .alert("Upload Status", isPresented: $showAlert) {
                 Button("OK") {
                     if shouldDismiss {
+                        cleanup()
                         dismiss()
                     }
                 }
             } message: {
                 Text(alertMessage)
             }
-            .onChange(of: selectedItem) { oldValue, newValue in
-                handleSelectedVideo()
+            .onChange(of: selectedItem) { _, newItem in
+                guard let item = newItem else { return }
+                handleVideoSelection(item)
             }
-        }
-        .onDisappear {
-            // Cleanup TranscriptionViewModel
-            transcriptionViewModel.cleanupResources()
         }
     }
     
-    private func handleSelectedVideo() {
-        guard let item = selectedItem else { return }
+    private func handleVideoSelection(_ item: PhotosPickerItem) {
+        guard !title.isEmpty else {
+            alertMessage = "Please enter a title first"
+            showAlert = true
+            selectedItem = nil
+            return
+        }
         
+        // Start upload process
         Task {
             do {
-                guard let data = try await item.loadTransferable(type: Data.self) else {
-                    throw NSError(domain: "VideoLoad", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not load video data"])
-                }
+                let (_, videoId) = try await viewModel.uploadVideo(
+                    item: item,
+                    title: title,
+                    description: description
+                )
+                currentVideoId = videoId
                 
-                // Create a temporary file for preview
-                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
-                try data.write(to: tempURL)
+                // Start transcription process
+                try await transcriptionViewModel.startTranscription(
+                    videoUrl: "https://iscope.s3.us-east-2.amazonaws.com/videos/\(videoId)",
+                    videoId: videoId
+                )
                 
-                await MainActor.run {
-                    self.previewURL = tempURL
-                }
+                alertMessage = "Video uploaded successfully! Transcription in progress..."
+                showAlert = true
             } catch {
-                print("Preview error: \(error.localizedDescription)")
-                await MainActor.run {
-                    alertMessage = "Error loading video preview: \(error.localizedDescription)"
-                    showAlert = true
-                }
+                print("Transcription error: \(error)")
+                alertMessage = "Error during transcription: \(error.localizedDescription)"
+                showAlert = true
             }
         }
     }
     
-    private func handleUpload() async {
-        guard let item = selectedItem else { return }
-        
-        do {
-            let (videoUrl, videoId) = try await viewModel.uploadVideo(item: item, title: title, description: description)
-            currentVideoId = videoId
-            
-            // Start transcription process
-            Task {
-                do {
-                    try await transcriptionViewModel.startTranscription(videoUrl: videoUrl, videoId: videoId)
-                } catch {
-                    print("Transcription error: \(error)")
-                    alertMessage = "Error during transcription: \(error.localizedDescription)"
-                    showAlert = true
-                    return
-                }
-            }
-            
-            // Refresh the feed after successful upload
-            await feedViewModel.refreshVideos()
-            
-            alertMessage = "Video uploaded successfully! Transcription in progress..."
-            showAlert = true
-            shouldDismiss = true
-            
-        } catch {
-            alertMessage = "Error uploading video: \(error.localizedDescription)"
-            showAlert = true
-        }
+    private func cleanup() {
+        // Just reset local state
+        selectedItem = nil
+        title = ""
+        description = ""
+        currentVideoId = nil
     }
 } 

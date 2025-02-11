@@ -10,18 +10,23 @@ struct ProfileHeaderView: View {
     var body: some View {
         VStack(spacing: 16) {
             // Profile Image
-            if let profileImage = profileViewModel.profileImage {
-                Image(uiImage: profileImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 80, height: 80)
-                    .clipShape(Circle())
-            } else {
-                Image(systemName: "person.circle.fill")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 80, height: 80)
-                    .foregroundColor(.gray)
+            ZStack {
+                if profileViewModel.isLoading {
+                    ProgressView()
+                        .frame(width: 80, height: 80)
+                } else if let profileImage = profileViewModel.profileImage {
+                    Image(uiImage: profileImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 80, height: 80)
+                        .clipShape(Circle())
+                } else {
+                    Image(systemName: "person.circle.fill")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 80, height: 80)
+                        .foregroundColor(.gray)
+                }
             }
             
             // User Email
@@ -51,7 +56,7 @@ struct ProfileHeaderView: View {
         }
         .padding()
         .task {
-            await profileViewModel.loadProfileImage()
+            profileViewModel.loadProfileImage()
         }
     }
 }

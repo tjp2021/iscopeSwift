@@ -1,105 +1,83 @@
 # Live Caption Implementation Checklist
 
-## 1. Package Integration 📦
-- [x] Add SwiftSubtitles dependency to Xcode project
-  - [x] Add package via Swift Package Manager: https://github.com/mrdekk/SwiftSubtitles
-  - [x] Update build settings if needed
-  - [x] Test basic package import
-  - [x] Document version and configuration
+## 1. Transcription Data Enhancement 📝
+- [ ] Modify Whisper API Integration
+  - [ ] Update API call to include timestamp data
+  - [ ] Store segment-level timing information
+  - [ ] Update Firestore schema for timing data
+  - [ ] Handle word-level timing data (optional)
 
 ## 2. Data Structure Updates 🏗️
-- [ ] Create Caption data model
-  - [ ] Define timestamp format
-  - [ ] Add support for SRT/WebVTT format
-  - [ ] Update Video model to include caption data
-  - [ ] Add Firestore serialization support
+- [ ] Update Video Model
+  - [ ] Add transcription segments array
+  - [ ] Add timing data structure
+  - [ ] Update Firestore serialization
+  - [ ] Add WebVTT conversion methods
 
-## 3. Transcription Processing 🔄
-- [ ] Implement transcription text to SRT/WebVTT conversion
-  - [ ] Parse raw transcription text
-  - [ ] Split into timed segments
-  - [ ] Generate proper subtitle format
-  - [ ] Add error handling
-  - [ ] Cache converted subtitles
+## 3. WebVTT Generation 🔄
+- [ ] Create WebVTT Converter
+  - [ ] Implement WebVTT formatting
+  - [ ] Handle timestamp conversion
+  - [ ] Add styling support
+  - [ ] Implement caching
 
-## 4. VideoPlayerManager Updates 🎥
-- [ ] Enhance time tracking
-  - [ ] Add precise timestamp observer
-  - [ ] Implement subtitle synchronization
-  - [ ] Handle seek events
-  - [ ] Add subtitle track management
-  - [ ] Implement subtitle enable/disable
+## 4. AVPlayer Integration 🎥
+- [ ] Implement Native Caption Support
+  - [ ] Create AVPlayerItem text track
+  - [ ] Configure caption styling
+  - [ ] Handle track selection
+  - [ ] Add caption toggle support
 
-## 5. UI Implementation 🎨
-- [ ] Update CaptionsOverlay
-  - [ ] Integrate SubtitleKit renderer
-  - [ ] Style caption display
-  - [ ] Add animation for transitions
-  - [ ] Handle multiple lines
-  - [ ] Support different text sizes
-  - [ ] Add caption positioning options
+## 5. UI Updates 🎨
+- [ ] Update Video Player UI
+  - [ ] Add caption toggle button
+  - [ ] Implement caption style controls
+  - [ ] Handle caption visibility
+  - [ ] Add accessibility support
 
-## 6. Testing & Validation ✅
-- [ ] Unit Tests
-  - [ ] Test subtitle parsing
-  - [ ] Test time synchronization
-  - [ ] Test format conversion
-  - [ ] Test error cases
-- [ ] Integration Tests
-  - [ ] Test with video playback
-  - [ ] Test with different video lengths
-  - [ ] Test with various caption formats
-  - [ ] Test performance
-- [ ] UI Tests
-  - [ ] Test caption display
-  - [ ] Test user interactions
-  - [ ] Test accessibility
+## 6. Error Handling 🐛
+- [ ] Handle Missing Data
+  - [ ] Fallback for missing timestamps
+  - [ ] Error messages for users
+  - [ ] Graceful degradation
+  - [ ] Loading states
 
 ## 7. Performance Optimization 🚀
-- [ ] Implement caching
-  - [ ] Cache parsed subtitles
-  - [ ] Cache rendered text
-  - [ ] Optimize memory usage
-- [ ] Optimize rendering
-  - [ ] Minimize UI updates
-  - [ ] Handle long transcripts
-  - [ ] Profile CPU/memory usage
+- [ ] Implement Caching
+  - [ ] Cache WebVTT files
+  - [ ] Optimize loading
+  - [ ] Memory management
+  - [ ] Handle large transcripts
 
-## 8. Error Handling & Edge Cases 🐛
-- [ ] Handle missing transcriptions
-- [ ] Handle malformed subtitle data
-- [ ] Handle network issues
-- [ ] Handle video seek/scrub
-- [ ] Handle app background/foreground
-- [ ] Handle device rotation
-- [ ] Handle different video resolutions
-
-## 9. Documentation 📝
-- [ ] Update code documentation
-  - [ ] Document new classes/methods
+## 8. Documentation 📚
+- [ ] Update Code Documentation
+  - [ ] Document WebVTT format
   - [ ] Add usage examples
   - [ ] Document error cases
-- [ ] Update user documentation
-  - [ ] Add caption features to README
-  - [ ] Document known limitations
   - [ ] Add troubleshooting guide
 
-## 10. Future Enhancements 🎯
-- [ ] Multi-language support
-- [ ] Custom styling options
-- [ ] Caption search feature
-- [ ] Export captions
-- [ ] Caption editor
-- [ ] Offline support
-
 ## Progress Tracking 📊
-- Total Tasks: 0/40
-- Current Focus: Package Integration
+- Total Tasks: 0/28
+- Current Focus: Transcription Data Enhancement
 - Next Up: Data Structure Updates
 - Timeline: TBD
 
 ## Notes 📌
 - Priority: High
-- Dependencies: SubtitleKit
-- Target iOS Version: Current project minimum
-- Current Status: Planning Phase 
+- Using: iOS Native Caption Support (AVPlayerItem text tracks)
+- Input: Whisper API with timestamps
+- Output Format: WebVTT
+- Current Status: Planning Phase
+
+## WebVTT Format Example 📋
+```
+WEBVTT
+
+1
+00:00:01.000 --> 00:00:04.000
+This is a test subtitle
+
+2
+00:00:04.000 --> 00:00:08.000
+With proper timing from Whisper
+``` 

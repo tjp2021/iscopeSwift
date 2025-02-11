@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseFirestore
 import FirebaseAuth
+import Network
 
 @MainActor
 class VideoFeedViewModel: ObservableObject {
@@ -9,53 +10,100 @@ class VideoFeedViewModel: ObservableObject {
     @Published var isLoadingMore = false
     @Published var isRefreshing = false
     @Published var isMuted = false  // Global mute state
+    @Published var isOnline = true
     
     private var lastDocument: DocumentSnapshot?
+    private var transcriptionListeners: [String: ListenerRegistration] = [:]
     private let pageSize = 5
     private let db = Firestore.firestore()
+    private var networkMonitor = NWPathMonitor()
+    private var retryTask: Task<Void, Never>?
+    
+    init() {
+        setupNetworkMonitoring()
+    }
+    
+    private func setupNetworkMonitoring() {
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                self?.isOnline = path.status == .satisfied
+                if path.status == .satisfied {
+                    // Network is back, retry failed operations
+                    self?.retryFailedOperations()
+                }
+            }
+        }
+        networkMonitor.start(queue: DispatchQueue.global())
+    }
+    
+    private func retryFailedOperations() {
+        retryTask?.cancel()
+        retryTask = Task {
+            // Retry loading videos if we have none
+            if videos.isEmpty {
+                await fetchVideos()
+            }
+            // Refresh existing video states
+            for video in videos {
+                await refreshVideoState(video)
+            }
+        }
+    }
+    
+    private func refreshVideoState(_ video: Video) async {
+        guard !Task.isCancelled else { return }
+        // Refresh video metadata, likes, etc.
+        do {
+            let videoDoc = try await db.collection("videos").document(video.id).getDocument()
+            if let updatedVideo = try? videoDoc.data(as: Video.self),
+               let index = videos.firstIndex(where: { $0.id == video.id }) {
+                videos[index] = updatedVideo
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
     
     func toggleMute() {
         isMuted.toggle()
     }
     
     func toggleLike(for video: Video) async {
-        guard let videoId = video.id, let userId = Auth.auth().currentUser?.uid else { return }
+        guard let userId = Auth.auth().currentUser?.uid else { return }
         
         do {
-            let likeRef = db.collection("videos").document(videoId).collection("likes").document(userId)
-            let videoRef = db.collection("videos").document(videoId)
+            let likeRef = db.collection("videos").document(video.id).collection("likes").document(userId)
+            let videoRef = db.collection("videos").document(video.id)
             
-            if video.isLiked {
+            let likeDoc = try await likeRef.getDocument()
+            let isCurrentlyLiked = likeDoc.exists
+            
+            if isCurrentlyLiked {
                 // Unlike
                 try await likeRef.delete()
-                try await videoRef.updateData([
-                    "likeCount": FieldValue.increment(Int64(-1))
-                ])
+                let updateData: [String: Any] = ["likeCount": FieldValue.increment(Int64(-1))]
+                try await videoRef.updateData(updateData)
                 
-                if let index = videos.firstIndex(where: { $0.id == videoId }) {
-                    videos[index].isLiked = false
+                if let index = videos.firstIndex(where: { $0.id == video.id }) {
                     videos[index].likeCount -= 1
                 }
             } else {
                 // Like
-                try await likeRef.setData(["createdAt": FieldValue.serverTimestamp()])
-                try await videoRef.updateData([
-                    "likeCount": FieldValue.increment(Int64(1))
-                ])
+                let likeData: [String: Any] = ["createdAt": FieldValue.serverTimestamp()]
+                try await likeRef.setData(likeData)
+                let updateData: [String: Any] = ["likeCount": FieldValue.increment(Int64(1))]
+                try await videoRef.updateData(updateData)
                 
-                if let index = videos.firstIndex(where: { $0.id == videoId }) {
-                    videos[index].isLiked = true
+                if let index = videos.firstIndex(where: { $0.id == video.id }) {
                     videos[index].likeCount += 1
                 }
             }
         } catch {
-            print("[VideoFeedViewModel] Error toggling like: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
     
     func refreshVideos() async {
-        print("[VideoFeedViewModel] Starting refresh")
         guard !isRefreshing else { return }
         
         isRefreshing = true
@@ -65,147 +113,90 @@ class VideoFeedViewModel: ObservableObject {
     }
     
     func fetchVideos() async {
-        print("[VideoFeedViewModel] Starting to fetch videos")
         do {
-            print("[VideoFeedViewModel] Executing Firestore query")
+            print("[VideoFeedViewModel] Starting to fetch videos")
             let snapshot = try await db.collection("videos")
                 .order(by: "createdAt", descending: true)
                 .getDocuments()
             
-            print("[VideoFeedViewModel] Got \(snapshot.documents.count) videos")
+            print("[VideoFeedViewModel] Got \(snapshot.documents.count) videos from Firestore")
             
-            // First, decode the basic video data
-            var videos = snapshot.documents.compactMap { document -> Video? in
+            let videos = snapshot.documents.compactMap { document -> Video? in
                 let data = document.data()
-                let transcriptionStatus = data["transcriptionStatus"] as? String
-                let transcriptionText = data["transcriptionText"] as? String
+                print("[VideoFeedViewModel] Processing video document: \(document.documentID)")
+                print("[VideoFeedViewModel] Full document data: \(data)")
+                print("[VideoFeedViewModel] URL field type: \(type(of: data["videoUrl"]))")
+                print("[VideoFeedViewModel] URL field value: \(data["videoUrl"] ?? "missing")")
                 
-                print("[VideoFeedViewModel] Video \(document.documentID):")
-                print("  - Raw Data: \(data)")
-                print("  - Transcription Status: \(String(describing: transcriptionStatus))")
-                print("  - Transcription Text: \(String(describing: transcriptionText))")
-                
-                var video = Video(
+                return Video(
                     id: document.documentID,
+                    userId: data["userId"] as? String ?? "",
                     title: data["title"] as? String ?? "",
-                    description: data["description"] as? String ?? "",
-                    videoUrl: data["videoUrl"] as? String ?? "",
-                    creatorId: data["creatorId"] as? String ?? "",
+                    description: data["description"] as? String,
+                    url: data["videoUrl"] as? String ?? "",
+                    thumbnailUrl: data["thumbnailUrl"] as? String,
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
+                    viewCount: data["viewCount"] as? Int ?? 0,
                     likeCount: data["likeCount"] as? Int ?? 0,
                     commentCount: data["commentCount"] as? Int ?? 0,
-                    isLiked: false,
-                    viewCount: data["viewCount"] as? Int ?? 0,
-                    transcriptionStatus: transcriptionStatus,
-                    transcriptionText: transcriptionText
+                    transcriptionStatus: data["transcriptionStatus"] as? String,
+                    transcriptionText: data["transcriptionText"] as? String,
+                    transcriptionSegments: nil
                 )
-                
-                // Verify the video object was created correctly
-                print("[VideoFeedViewModel] Created video object:")
-                print("  - ID: \(String(describing: video.id))")
-                print("  - Status: \(String(describing: video.transcriptionStatus))")
-                print("  - Text: \(String(describing: video.transcriptionText))")
-                
-                return video
             }
             
-            // Then, if user is logged in, fetch like status for each video
-            if let userId = Auth.auth().currentUser?.uid {
-                print("[VideoFeedViewModel] Fetching like status for user: \(userId)")
-                for i in 0..<videos.count {
-                    if let videoId = videos[i].id {
-                        let likeDoc = try? await db.collection("videos")
-                            .document(videoId)
-                            .collection("likes")
-                            .document(userId)
-                            .getDocument()
-                        videos[i].isLiked = likeDoc?.exists ?? false
-                    }
-                }
+            print("[VideoFeedViewModel] Processed \(videos.count) valid videos")
+            for (index, video) in videos.enumerated() {
+                print("[VideoFeedViewModel] Video \(index): ID=\(video.id), URL=\(video.url)")
             }
             
-            print("[VideoFeedViewModel] Successfully processed \(videos.count) videos")
             self.videos = videos
+            self.lastDocument = snapshot.documents.last
+            self.error = nil
             
             // Set up real-time listeners for transcription updates
             setupTranscriptionListeners()
             
         } catch {
-            print("[VideoFeedViewModel] Error fetching videos: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
     
     private func setupTranscriptionListeners() {
-        print("[VideoFeedViewModel] Setting up transcription listeners")
-        
-        // Remove any existing listeners
         for listener in transcriptionListeners.values {
             listener.remove()
         }
         transcriptionListeners.removeAll()
         
-        // Set up new listeners for each video
         for video in videos {
-            guard let videoId = video.id else { continue }
-            
-            print("[VideoFeedViewModel] Setting up listener for video: \(videoId)")
-            print("  - Current Status: \(String(describing: video.transcriptionStatus))")
-            print("  - Current Text: \(String(describing: video.transcriptionText))")
-            
-            let listener = db.collection("videos").document(videoId)
+            let listener = db.collection("videos").document(video.id)
                 .addSnapshotListener { [weak self] documentSnapshot, error in
                     guard let self = self else { return }
                     
                     if let error = error {
-                        print("[VideoFeedViewModel] Error listening to video \(videoId): \(error)")
+                        self.error = error.localizedDescription
                         return
                     }
                     
-                    guard let document = documentSnapshot, document.exists else {
-                        print("[VideoFeedViewModel] Document does not exist for video \(videoId)")
-                        return
-                    }
+                    guard let document = documentSnapshot, document.exists else { return }
                     
                     let data = document.data() ?? [:]
-                    print("[VideoFeedViewModel] Received update for video \(videoId):")
-                    print("  - Raw Data: \(data)")
-                    
                     let transcriptionStatus = data["transcriptionStatus"] as? String
                     let transcriptionText = data["transcriptionText"] as? String
                     
-                    print("  - Status: \(String(describing: transcriptionStatus))")
-                    print("  - Text: \(String(describing: transcriptionText))")
-                    
-                    if let index = self.videos.firstIndex(where: { $0.id == videoId }) {
-                        print("[VideoFeedViewModel] Updating video at index: \(index)")
-                        
+                    if let index = self.videos.firstIndex(where: { $0.id == video.id }) {
                         Task { @MainActor in
-                            // Create a new video instance with updated values
                             var updatedVideo = self.videos[index]
                             updatedVideo.transcriptionStatus = transcriptionStatus
                             updatedVideo.transcriptionText = transcriptionText
-                            
-                            // Update the videos array
                             self.videos[index] = updatedVideo
-                            
-                            print("[VideoFeedViewModel] Video updated successfully")
-                            print("  - ID: \(videoId)")
-                            print("  - New Status: \(String(describing: updatedVideo.transcriptionStatus))")
-                            print("  - New Text: \(String(describing: updatedVideo.transcriptionText))")
                         }
-                    } else {
-                        print("[VideoFeedViewModel] Could not find video with ID: \(videoId)")
                     }
                 }
             
-            transcriptionListeners[videoId] = listener
+            transcriptionListeners[video.id] = listener
         }
-        
-        print("[VideoFeedViewModel] Finished setting up \(transcriptionListeners.count) listeners")
     }
-    
-    private var transcriptionListeners: [String: ListenerRegistration] = [:]
     
     deinit {
         // Clean up listeners
@@ -213,14 +204,12 @@ class VideoFeedViewModel: ObservableObject {
             listener.remove()
         }
         transcriptionListeners.removeAll()
+        networkMonitor.cancel()
+        retryTask?.cancel()
     }
     
     func fetchMoreVideos() async {
-        print("[VideoFeedViewModel] Starting to fetch more videos")
-        guard !isLoadingMore, let lastDocument = lastDocument else {
-            print("[VideoFeedViewModel] Cannot fetch more: isLoadingMore=\(isLoadingMore), lastDocument=\(lastDocument != nil)")
-            return
-        }
+        guard !isLoadingMore, let lastDocument = lastDocument else { return }
         
         isLoadingMore = true
         defer { isLoadingMore = false }
@@ -231,76 +220,48 @@ class VideoFeedViewModel: ObservableObject {
                 .limit(to: pageSize)
                 .start(afterDocument: lastDocument)
             
-            print("[VideoFeedViewModel] Executing pagination query")
             let snapshot = try await query.getDocuments()
-            print("[VideoFeedViewModel] Got \(snapshot.documents.count) additional videos")
             
             let newVideos = snapshot.documents.compactMap { document in
                 let data = document.data()
                 return Video(
                     id: document.documentID,
+                    userId: data["userId"] as? String ?? "",
                     title: data["title"] as? String ?? "",
-                    description: data["description"] as? String ?? "",
-                    videoUrl: data["videoUrl"] as? String ?? "",
-                    creatorId: data["creatorId"] as? String ?? "",
+                    description: data["description"] as? String,
+                    url: data["videoUrl"] as? String ?? "",
+                    thumbnailUrl: data["thumbnailUrl"] as? String,
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
+                    viewCount: data["viewCount"] as? Int ?? 0,
                     likeCount: data["likeCount"] as? Int ?? 0,
                     commentCount: data["commentCount"] as? Int ?? 0,
-                    isLiked: false,
-                    viewCount: data["viewCount"] as? Int ?? 0
+                    transcriptionStatus: data["transcriptionStatus"] as? String,
+                    transcriptionText: data["transcriptionText"] as? String,
+                    transcriptionSegments: nil // We'll fetch this separately if needed
                 )
             }
             
-            // Fetch like status for each video if user is logged in
-            if let userId = Auth.auth().currentUser?.uid {
-                await withTaskGroup(of: (String, Bool).self) { group in
-                    for video in newVideos {
-                        group.addTask {
-                            let likeDoc = try? await self.db.collection("videos")
-                                .document(video.id ?? "")
-                                .collection("likes")
-                                .document(userId)
-                                .getDocument()
-                            return (video.id ?? "", likeDoc?.exists ?? false)
-                        }
-                    }
-                    
-                    var likeStatuses: [String: Bool] = [:]
-                    for await (videoId, isLiked) in group {
-                        likeStatuses[videoId] = isLiked
-                    }
-                    
-                    let updatedNewVideos = newVideos.map { video in
-                        var updatedVideo = video
-                        updatedVideo.isLiked = likeStatuses[video.id ?? ""] ?? false
-                        return updatedVideo
-                    }
-                    
-                    self.videos.append(contentsOf: updatedNewVideos)
-                }
-            } else {
-                self.videos.append(contentsOf: newVideos)
-            }
-            
+            self.videos.append(contentsOf: newVideos)
             self.lastDocument = snapshot.documents.last
             self.error = nil
-            print("[VideoFeedViewModel] Successfully processed additional videos")
         } catch {
-            print("[VideoFeedViewModel] Error fetching more videos: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
     
     private func createVideoData(_ video: Video) -> [String: Any] {
-        let data: [String: any Sendable] = [
+        let data: [String: Any] = [
             "title": video.title,
-            "description": video.description,
-            "videoUrl": video.videoUrl,
-            "creatorId": video.creatorId,
+            "description": video.description as Any,
+            "videoUrl": video.url,
+            "userId": video.userId,
             "createdAt": video.createdAt,
             "likeCount": video.likeCount,
             "commentCount": video.commentCount,
-            "viewCount": video.viewCount
+            "viewCount": video.viewCount,
+            "thumbnailUrl": video.thumbnailUrl as Any,
+            "transcriptionStatus": video.transcriptionStatus as Any,
+            "transcriptionText": video.transcriptionText as Any
         ]
         return data
     }
@@ -313,42 +274,68 @@ class VideoFeedViewModel: ObservableObject {
         let testVideos = [
             Video(
                 id: UUID().uuidString,
-                title: "News Report Sample",
-                description: "Short news clip with clear speech for testing transcription",
-                videoUrl: "https://storage.googleapis.com/aai-web-samples/news.mp4",
-                creatorId: "test_user",
+                userId: "test_user",
+                title: "Big Buck Bunny",
+                description: "Test video with valid URL",
+                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                thumbnailUrl: nil,
                 createdAt: Date(),
+                viewCount: 0,
                 likeCount: 0,
                 commentCount: 0,
-                isLiked: false,
-                viewCount: 0
+                transcriptionStatus: nil,
+                transcriptionText: nil,
+                transcriptionSegments: nil
             ),
             Video(
                 id: UUID().uuidString,
-                title: "Mountain Hiking",
-                description: "Epic hike through the mountains. The views were breathtaking!",
-                videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-                creatorId: "test_user",
+                userId: "test_user",
+                title: "Elephant Dream",
+                description: "Another test video with valid URL",
+                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+                thumbnailUrl: nil,
                 createdAt: Date().addingTimeInterval(-86400),
+                viewCount: 0,
                 likeCount: 0,
                 commentCount: 0,
-                isLiked: false,
-                viewCount: 0
+                transcriptionStatus: nil,
+                transcriptionText: nil,
+                transcriptionSegments: nil
             )
         ]
         
         do {
+            print("[VideoFeedViewModel] Creating test videos in Firestore")
             for video in testVideos {
                 let data = createVideoData(video)
-                try await db.collection("videos").document(video.id!).setData(data)
+                print("[VideoFeedViewModel] Adding video with URL: \(video.url)")
+                try await db.collection("videos").document(video.id).setData(data)
             }
-            print("[VideoFeedViewModel] ✅ Test data seeded successfully")
+            print("[VideoFeedViewModel] Test data seeded successfully")
             await fetchVideos()
         } catch {
-            print("[VideoFeedViewModel] ❌ Error seeding test data: \(error.localizedDescription)")
+            print("[VideoFeedViewModel] Error seeding test data: \(error.localizedDescription)")
+            self.error = error.localizedDescription
+        }
+    }
+    
+    // Helper function to seed test data and verify URLs
+    func verifyAndSeedTestData() async {
+        print("[VideoFeedViewModel] Verifying existing videos...")
+        let snapshot = try? await db.collection("videos").getDocuments()
+        let hasValidVideos = snapshot?.documents.contains { doc in
+            let data = doc.data()
+            return data["videoUrl"] as? String != nil && !(data["videoUrl"] as! String).isEmpty
+        } ?? false
+        
+        if !hasValidVideos {
+            print("[VideoFeedViewModel] No valid videos found, seeding test data...")
+            await seedTestData()
+        } else {
+            print("[VideoFeedViewModel] Valid videos found, skipping test data seeding")
         }
     }
     #endif
 }
 
-extension Video: @unchecked Sendable {}  // Since Video is a struct with only Sendable properties 
+extension Video: @unchecked Sendable {} 

@@ -148,21 +148,25 @@ class UploadViewModel: ObservableObject {
         }
         
         let videoId = UUID().uuidString
-        // Updated S3 bucket URL with correct region and bucket name
         let s3URL = "https://iscope.s3.us-east-2.amazonaws.com/\(videoKey)"
         
-        let video = Video(
+        let newVideo = Video(
             id: videoId,
+            userId: userId,
             title: title,
             description: description,
-            videoUrl: s3URL,
-            creatorId: userId,
+            url: s3URL,
+            thumbnailUrl: nil,
             createdAt: Date(),
-            transcriptionStatus: "pending",  // Set initial status
-            transcriptionText: nil          // No text yet
+            viewCount: 0,
+            likeCount: 0,
+            commentCount: 0,
+            transcriptionStatus: "pending",
+            transcriptionText: nil,
+            transcriptionSegments: nil
         )
         
-        try db.collection("videos").document(videoId).setData(from: video)
+        try db.collection("videos").document(videoId).setData(from: newVideo)
         return videoId
     }
     

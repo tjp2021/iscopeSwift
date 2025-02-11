@@ -1,89 +1,95 @@
 import Foundation
 
 struct Video: Identifiable, Codable, Equatable {
-    var id: String?
-    let title: String
-    let description: String
-    let videoUrl: String
-    let creatorId: String
-    let createdAt: Date
+    var id: String
+    var userId: String
+    var title: String
+    var description: String?
+    var url: String
+    var thumbnailUrl: String?
+    var createdAt: Date
+    var viewCount: Int
     var likeCount: Int
     var commentCount: Int
-    var isLiked: Bool
-    var viewCount: Int
     var transcriptionStatus: String?  // "pending", "completed", "failed"
     var transcriptionText: String?    // The actual transcription when completed
+    var transcriptionSegments: [TranscriptionSegment]? // Array of timed segments
     
     enum CodingKeys: String, CodingKey {
         case id
+        case userId
         case title
         case description
-        case videoUrl
-        case creatorId
+        case url
+        case thumbnailUrl
         case createdAt
+        case viewCount
         case likeCount
         case commentCount
-        case viewCount
         case transcriptionStatus
         case transcriptionText
-        // isLiked is intentionally omitted as it's computed from the likes collection
+        case transcriptionSegments
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decodeIfPresent(String.self, forKey: .id)
+        id = try container.decode(String.self, forKey: .id)
+        userId = try container.decode(String.self, forKey: .userId)
         title = try container.decode(String.self, forKey: .title)
-        description = try container.decode(String.self, forKey: .description)
-        videoUrl = try container.decode(String.self, forKey: .videoUrl)
-        creatorId = try container.decode(String.self, forKey: .creatorId)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        url = try container.decode(String.self, forKey: .url)
+        thumbnailUrl = try container.decodeIfPresent(String.self, forKey: .thumbnailUrl)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
-        likeCount = try container.decode(Int.self, forKey: .likeCount)
-        commentCount = try container.decode(Int.self, forKey: .commentCount)
-        viewCount = try container.decode(Int.self, forKey: .viewCount)
+        viewCount = try container.decodeIfPresent(Int.self, forKey: .viewCount) ?? 0
+        likeCount = try container.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
+        commentCount = try container.decodeIfPresent(Int.self, forKey: .commentCount) ?? 0
         transcriptionStatus = try container.decodeIfPresent(String.self, forKey: .transcriptionStatus)
         transcriptionText = try container.decodeIfPresent(String.self, forKey: .transcriptionText)
-        isLiked = false // Default value, will be set after fetching like status
+        transcriptionSegments = try container.decodeIfPresent([TranscriptionSegment].self, forKey: .transcriptionSegments)
     }
     
-    init(id: String? = nil,
+    init(id: String,
+         userId: String,
          title: String,
-         description: String,
-         videoUrl: String,
-         creatorId: String,
-         createdAt: Date,
+         description: String? = nil,
+         url: String,
+         thumbnailUrl: String? = nil,
+         createdAt: Date = Date(),
+         viewCount: Int = 0,
          likeCount: Int = 0,
          commentCount: Int = 0,
-         isLiked: Bool = false,
-         viewCount: Int = 0,
          transcriptionStatus: String? = nil,
-         transcriptionText: String? = nil) {
+         transcriptionText: String? = nil,
+         transcriptionSegments: [TranscriptionSegment]? = nil) {
         self.id = id
+        self.userId = userId
         self.title = title
         self.description = description
-        self.videoUrl = videoUrl
-        self.creatorId = creatorId
+        self.url = url
+        self.thumbnailUrl = thumbnailUrl
         self.createdAt = createdAt
+        self.viewCount = viewCount
         self.likeCount = likeCount
         self.commentCount = commentCount
-        self.isLiked = isLiked
-        self.viewCount = viewCount
         self.transcriptionStatus = transcriptionStatus
         self.transcriptionText = transcriptionText
+        self.transcriptionSegments = transcriptionSegments
     }
     
     static func == (lhs: Video, rhs: Video) -> Bool {
         return lhs.id == rhs.id &&
-            lhs.title == rhs.title &&
-            lhs.description == rhs.description &&
-            lhs.videoUrl == rhs.videoUrl &&
-            lhs.creatorId == rhs.creatorId &&
-            lhs.createdAt == rhs.createdAt &&
-            lhs.likeCount == rhs.likeCount &&
-            lhs.commentCount == rhs.commentCount &&
-            lhs.isLiked == rhs.isLiked &&
-            lhs.viewCount == rhs.viewCount &&
-            lhs.transcriptionStatus == rhs.transcriptionStatus &&
-            lhs.transcriptionText == rhs.transcriptionText
+        lhs.userId == rhs.userId &&
+        lhs.title == rhs.title &&
+        lhs.description == rhs.description &&
+        lhs.url == rhs.url &&
+        lhs.thumbnailUrl == rhs.thumbnailUrl &&
+        lhs.createdAt == rhs.createdAt &&
+        lhs.viewCount == rhs.viewCount &&
+        lhs.likeCount == rhs.likeCount &&
+        lhs.commentCount == rhs.commentCount &&
+        lhs.transcriptionStatus == rhs.transcriptionStatus &&
+        lhs.transcriptionText == rhs.transcriptionText &&
+        lhs.transcriptionSegments == rhs.transcriptionSegments
     }
 }
 
@@ -91,17 +97,32 @@ extension Video {
     static var mock: Video {
         Video(
             id: "mockId",
+            userId: "mockUserId",
             title: "Mock Video",
             description: "A mock video for testing",
-            videoUrl: "https://example.com/video.mp4",
-            creatorId: "mockCreatorId",
+            url: "https://example.com/video.mp4",
+            thumbnailUrl: nil,
             createdAt: Date(),
-            likeCount: 0,
-            commentCount: 0,
-            isLiked: false,
-            viewCount: 0,
+            viewCount: 100,
+            likeCount: 50,
+            commentCount: 10,
             transcriptionStatus: "completed",
-            transcriptionText: "This is a mock transcription text for testing purposes."
+            transcriptionText: "This is a mock transcription text for testing purposes.",
+            transcriptionSegments: nil
         )
+    }
+}
+
+// Transcription segment structure
+struct TranscriptionSegment: Codable, Equatable {
+    var text: String
+    var startTime: Double  // Start time in seconds
+    var endTime: Double    // End time in seconds
+    var words: [Word]?     // Optional word-level timing data
+    
+    struct Word: Codable, Equatable {
+        var text: String
+        var startTime: Double
+        var endTime: Double
     }
 } 

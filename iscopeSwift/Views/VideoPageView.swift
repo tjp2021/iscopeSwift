@@ -14,18 +14,21 @@ class VideoPlayerManager: NSObject, ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     func setupPlayer(for url: URL) -> AVPlayer {
-        print("[VideoPlayer] Setting up player for URL: \(url)")
+        print("[VideoPlayerManager] Starting setup for URL: \(url)")
         cleanup()
         
         let playerItem = AVPlayerItem(url: url)
+        print("[VideoPlayerManager] Created AVPlayerItem")
         playerItem.automaticallyPreservesTimeOffsetFromLive = true
         let newPlayer = AVPlayer(playerItem: playerItem)
+        print("[VideoPlayerManager] Created AVPlayer")
         
         // Enable background audio
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            print("[VideoPlayerManager] Audio session setup successful")
         } catch {
-            print("[VideoPlayer] Audio session setup failed: \(error)")
+            print("[VideoPlayerManager] Audio session setup failed: \(error)")
             self.error = error
         }
         
@@ -34,7 +37,9 @@ class VideoPlayerManager: NSObject, ObservableObject {
         let interval = CMTime(seconds: 2, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             self?.currentTime = time.seconds
+            print("[VideoPlayerManager] Current playback time: \(time.seconds)")
         }
+        print("[VideoPlayerManager] Added periodic time observer")
         #endif
         
         playerItem.addObserver(
@@ -43,6 +48,7 @@ class VideoPlayerManager: NSObject, ObservableObject {
             options: [.old, .new],
             context: &playerItemContext
         )
+        print("[VideoPlayerManager] Added status observer")
         
         // Add error observer
         NotificationCenter.default.addObserver(
@@ -51,10 +57,11 @@ class VideoPlayerManager: NSObject, ObservableObject {
             queue: .main
         ) { [weak self] notification in
             if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error {
-                print("[VideoPlayer] Failed to play to end: \(error)")
+                print("[VideoPlayerManager] Failed to play to end: \(error)")
                 self?.error = error
             }
         }
+        print("[VideoPlayerManager] Added error observer")
         
         // Add playback ended observer
         NotificationCenter.default.addObserver(
@@ -62,11 +69,14 @@ class VideoPlayerManager: NSObject, ObservableObject {
             object: playerItem,
             queue: .main
         ) { [weak self] _ in
+            print("[VideoPlayerManager] Playback reached end, looping")
             newPlayer.seek(to: .zero)
             newPlayer.play()
         }
+        print("[VideoPlayerManager] Added end of playback observer")
         
         self.player = newPlayer
+        print("[VideoPlayerManager] Setup complete")
         return newPlayer
     }
     
@@ -80,26 +90,31 @@ class VideoPlayerManager: NSObject, ObservableObject {
             let status: AVPlayerItem.Status
             if let statusNumber = change?[.newKey] as? NSNumber {
                 status = AVPlayerItem.Status(rawValue: statusNumber.intValue)!
+                print("[VideoPlayerManager] Player status changed to: \(status.rawValue)")
             } else {
                 status = .unknown
+                print("[VideoPlayerManager] Player status unknown (no status number)")
             }
             
             DispatchQueue.main.async { [weak self] in
                 switch status {
                 case .readyToPlay:
+                    print("[VideoPlayerManager] Player is ready to play")
                     self?.isLoading = false
                     self?.error = nil
                     self?.player?.play()
                 case .failed:
                     if let error = self?.player?.currentItem?.error {
-                        print("[VideoPlayer] Error: \(error)")
+                        print("[VideoPlayerManager] Player failed with error: \(error)")
                         self?.error = error
                     }
                     self?.isLoading = false
                 case .unknown:
+                    print("[VideoPlayerManager] Player status is unknown")
                     self?.isLoading = true
                     self?.error = nil
                 @unknown default:
+                    print("[VideoPlayerManager] Player status is in unexpected state")
                     self?.isLoading = false
                     self?.error = nil
                 }
@@ -108,25 +123,31 @@ class VideoPlayerManager: NSObject, ObservableObject {
     }
     
     func cleanup() {
+        print("[VideoPlayerManager] Starting cleanup")
         if let player = player {
             player.pause()
+            print("[VideoPlayerManager] Player paused")
             
             if let timeObserverToken = timeObserverToken {
                 player.removeTimeObserver(timeObserverToken)
                 self.timeObserverToken = nil
+                print("[VideoPlayerManager] Removed time observer")
             }
             
             player.currentItem?.removeObserver(self, forKeyPath: #keyPath(AVPlayerItem.status))
             NotificationCenter.default.removeObserver(self)
+            print("[VideoPlayerManager] Removed observers")
         }
         
         player = nil
         isLoading = true
         error = nil
         currentTime = 0
+        print("[VideoPlayerManager] Cleanup completed")
     }
     
     deinit {
+        print("[VideoPlayerManager] Deinitializing")
         cleanup()
     }
 }
@@ -222,10 +243,42 @@ private struct ErrorOverlay: View {
     }
 }
 
+// Control overlay component
+private struct VideoControlsOverlay: View {
+    let video: Video
+    let showingComments: Bool
+    let showCaptions: Bool
+    let onCommentsToggle: () -> Void
+    let onCaptionsToggle: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 20) {
+            Button(action: onCommentsToggle) {
+                VStack {
+                    Image(systemName: "bubble.right")
+                        .font(.system(size: 24))
+                    Text("\(video.commentCount)")
+                        .font(.caption)
+                }
+            }
+            
+            Button(action: onCaptionsToggle) {
+                Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
+                    .font(.system(size: 24))
+            }
+        }
+        .foregroundColor(.white)
+        .padding()
+        .background(Color.black.opacity(0.5))
+        .cornerRadius(12)
+    }
+}
+
 struct VideoPageView: View {
     @Binding var video: Video
     @ObservedObject var viewModel: VideoFeedViewModel
     @StateObject private var playerManager = VideoPlayerManager()
+    @StateObject private var engagementViewModel = VideoEngagementViewModel()
     @State private var player: AVPlayer?
     @State private var showError = false
     @State private var errorMessage: String?
@@ -234,6 +287,8 @@ struct VideoPageView: View {
     @State private var showingComments = false
     @State private var showingTranscription = false
     @State private var showCaptions = true
+    @State private var showingUploadSheet = false
+    @State private var showingProfile = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -242,48 +297,124 @@ struct VideoPageView: View {
                     CustomVideoPlayer(player: player)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .edgesIgnoringSafeArea(.all)
-                        .overlay(alignment: .bottom) {
-                            VStack(spacing: 0) {
-                                if showCaptions {
-                                    CaptionsOverlay(transcriptionText: video.transcriptionText)
-                                        .animation(.easeInOut, value: showCaptions)
-                                }
-                                
-                                overlayContent
-                            }
-                        }
-                        .overlay(alignment: .trailing) {
-                            VideoEngagementView(video: $video, viewModel: viewModel, showCaptions: $showCaptions)
-                                .padding(.trailing, 16)
-                                .padding(.bottom, 16)
-                        }
-                }
-                
-                if playerManager.isLoading && !isRetrying {
+                } else if playerManager.isLoading {
                     LoadingOverlay()
-                }
-                
-                if showError {
+                } else if showError {
                     ErrorOverlay(
                         errorMessage: errorMessage,
                         isRetrying: isRetrying,
-                        retryAction: retryLoading
+                        retryAction: retryVideo
                     )
                 }
+                
+                // Engagement Side Menu
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 20) {
+                            Spacer() // Add top spacer for vertical centering
+                            
+                            // Like Button
+                            Button(action: {
+                                Task {
+                                    await engagementViewModel.handleLikeAction(for: video)
+                                }
+                            }) {
+                                VStack {
+                                    Image(systemName: engagementViewModel.isVideoLiked(video) ? "heart.fill" : "heart")
+                                        .font(.system(size: 30))
+                                        .foregroundColor(engagementViewModel.isVideoLiked(video) ? .red : .white)
+                                    Text("\(video.likeCount)")
+                                        .font(.caption)
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            
+                            // Comments Button
+                            Button(action: {
+                                showingComments.toggle()
+                            }) {
+                                VStack {
+                                    Image(systemName: "bubble.right")
+                                        .font(.system(size: 30))
+                                        .foregroundColor(.white)
+                                    Text("\(video.commentCount)")
+                                        .font(.caption)
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            
+                            // Mute Button
+                            Button(action: {
+                                viewModel.isMuted.toggle()
+                            }) {
+                                Image(systemName: viewModel.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            // Captions Button
+                            Button(action: {
+                                showCaptions.toggle()
+                            }) {
+                                Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            // Add Video Button
+                            Button(action: {
+                                showingUploadSheet.toggle()
+                            }) {
+                                Image(systemName: "plus.circle")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            // Profile Button
+                            Button {
+                                showingProfile = true
+                            } label: {
+                                Image(systemName: "person")
+                                    .font(.system(size: 24))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            Spacer() // Add bottom spacer for vertical centering
+                        }
+                        .padding(.trailing, 20)
+                    }
+                }
+                
+                // Captions Overlay
+                if showCaptions {
+                    VStack {
+                        Spacer()
+                        CaptionsOverlay(transcriptionText: video.transcriptionText)
+                            .padding(.bottom, 100)
+                    }
+                }
+                
+                #if DEBUG
+                if isVisible {
+                    DebugOverlay(
+                        showCaptions: showCaptions,
+                        transcriptionStatus: video.transcriptionStatus,
+                        transcriptionText: video.transcriptionText
+                    )
+                }
+                #endif
             }
         }
         .background(Color.black)
         .onAppear {
-            print("[VideoPageView] View appeared")
-            print("[VideoPageView] Initial showCaptions state: \(showCaptions)")
-            print("[VideoPageView] Video ID: \(String(describing: video.id))")
-            print("[VideoPageView] Transcription status: \(String(describing: video.transcriptionStatus))")
-            print("[VideoPageView] Transcription text: \(String(describing: video.transcriptionText))")
+            print("[VideoPageView] View appearing")
+            print("[VideoPageView] Video data: id=\(video.id), url=\(video.url)")
             isVisible = true
             setupVideo()
         }
         .onDisappear {
-            print("[VideoPageView] View disappeared")
             isVisible = false
             cleanup()
         }
@@ -298,74 +429,79 @@ struct VideoPageView: View {
         .onChange(of: viewModel.isMuted) { _, isMuted in
             player?.isMuted = isMuted
         }
-        .onChange(of: showCaptions) { _, newValue in
-            print("[VideoPageView] showCaptions changed to: \(newValue)")
-        }
-        .onChange(of: video.transcriptionText) { _, newValue in
-            print("[VideoPageView] Transcription text updated: \(String(describing: newValue))")
-        }
-        .onChange(of: video.transcriptionStatus) { _, newValue in
-            print("[VideoPageView] Transcription status updated: \(String(describing: newValue))")
-        }
         .sheet(isPresented: $showingComments) {
-            CommentsView(video: .constant(video))
+            CommentsView(video: $video)
         }
-        .sheet(isPresented: $showingTranscription) {
-            NavigationView {
-                TranscriptionView(video: video)
-            }
+        .sheet(isPresented: $showingUploadSheet) {
+            UploadVideoView()
+        }
+        .sheet(isPresented: $showingProfile) {
+            MyVideosView()
         }
     }
     
     private func setupVideo() {
-        guard isVisible else { return }
+        print("[VideoPageView] Starting setupVideo() - isVisible: \(isVisible)")
+        print("[VideoPageView] Video object: id=\(video.id), title=\(video.title), url=\(video.url)")
         
-        guard let url = URL(string: video.videoUrl) else {
-            errorMessage = "Invalid video URL"
+        guard isVisible else {
+            print("[VideoPageView] Setup aborted - view not visible")
+            return
+        }
+        
+        if video.url.isEmpty {
+            print("[VideoPageView] Setup failed - Empty URL string")
+            errorMessage = "Video URL is empty"
             showError = true
             return
         }
         
+        guard let url = URL(string: video.url) else {
+            print("[VideoPageView] Setup failed - Invalid URL: \(video.url)")
+            errorMessage = "Invalid video URL"
+            showError = true
+            return
+        }
+        print("[VideoPageView] Video URL validated: \(url)")
+        
+        // Check network connectivity
+        if !viewModel.isOnline {
+            print("[VideoPageView] Setup failed - No network connection")
+            errorMessage = "No internet connection. Please check your network settings."
+            showError = true
+            return
+        }
+        print("[VideoPageView] Network connectivity confirmed")
+        
+        // Use VideoPlayerManager to set up the player
+        print("[VideoPageView] Setting up player with VideoPlayerManager")
         player = playerManager.setupPlayer(for: url)
         player?.isMuted = viewModel.isMuted
+        print("[VideoPageView] Player setup complete - isMuted: \(viewModel.isMuted)")
         player?.play()
+        print("[VideoPageView] Player.play() called")
     }
     
     private func cleanup() {
-        playerManager.cleanup()
+        print("[VideoPageView] Starting cleanup")
+        player?.pause()
         player = nil
+        playerManager.cleanup()
+        print("[VideoPageView] Cleanup completed")
     }
     
-    private func retryLoading() {
+    private func retryVideo() {
+        print("[VideoPageView] Starting video retry")
         isRetrying = true
+        errorMessage = nil
         showError = false
-        cleanup()
         
-        Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
-            setupVideo()
+        // Add slight delay to show retry animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            print("[VideoPageView] Executing retry after delay")
             isRetrying = false
+            setupVideo()
         }
-    }
-    
-    private var overlayContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(video.title)
-                .font(.title3)
-                .bold()
-                .foregroundColor(.white)
-            Text(video.description)
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.8))
-        }
-        .padding()
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [.clear, .black.opacity(0.7)]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
     }
 }
 

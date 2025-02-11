@@ -4,46 +4,55 @@ struct VideoRowView: View {
     let video: Video
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(video.title)
-                .font(.headline)
-            Text(video.description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
+        HStack {
+            // Thumbnail
+            AsyncImage(url: URL(string: video.thumbnailUrl ?? "")) { image in
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } placeholder: {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+            }
+            .frame(width: 120, height: 80)
+            .cornerRadius(8)
             
-            HStack(spacing: 16) {
-                Label("\(video.viewCount)", systemImage: "eye")
-                    .foregroundColor(.secondary)
-                Label("\(video.likeCount)", systemImage: "heart")
-                    .foregroundColor(.secondary)
-                Label("\(video.commentCount)", systemImage: "bubble.right")
-                    .foregroundColor(.secondary)
+            // Video details
+            VStack(alignment: .leading, spacing: 4) {
+                Text(video.title)
+                    .font(.headline)
+                    .lineLimit(2)
                 
-                Spacer()
+                if let description = video.description {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
                 
-                Text(video.createdAt, style: .relative)
+                Text(formatDate(video.createdAt))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            .font(.caption)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: date)
     }
 }
 
 #Preview {
     VideoRowView(video: Video(
-        id: "test",
+        id: "mockId",
+        userId: "mockUserId",
         title: "Test Video",
-        description: "This is a test video description that might be a bit longer to test the line limit.",
-        videoUrl: "",
-        creatorId: "test_user",
-        createdAt: Date(),
-        likeCount: 123,
-        commentCount: 45,
-        isLiked: false,
-        viewCount: 678
+        description: "A test video description that might be long enough to show multiple lines in the UI",
+        url: "https://example.com/video.mp4",
+        thumbnailUrl: nil,
+        createdAt: Date()
     ))
-    .padding()
 } 

@@ -27,9 +27,11 @@ struct GridVideoPlayerView: View {
                         Text(video.title)
                             .font(.title2)
                             .foregroundColor(.white)
-                        Text(video.description)
-                            .font(.body)
-                            .foregroundColor(.white.opacity(0.8))
+                        if let description = video.description {
+                            Text(description)
+                                .font(.body)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
                     }
                     .padding()
                     .background(
@@ -60,8 +62,8 @@ struct GridVideoPlayerView: View {
     }
     
     private func setupPlayer() {
-        guard let url = URL(string: video.videoUrl) else {
-            print("[GridVideoPlayer] Failed to create URL from: \(video.videoUrl)")
+        guard let url = URL(string: video.url) else {
+            print("[GridVideoPlayer] Failed to create URL from: \(video.url)")
             return
         }
         
@@ -129,9 +131,11 @@ struct CreatorVideoDetailView: View {
                                 .font(.title2)
                                 .fontWeight(.bold)
                             
-                            Text(video.description)
-                                .font(.body)
-                                .foregroundColor(.secondary)
+                            if let description = video.description {
+                                Text(description)
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         
                         // Stats Row
@@ -209,7 +213,7 @@ struct CreatorVideoDetailView: View {
     }
     
     private func setupPlayer() {
-        guard let url = URL(string: video.videoUrl) else { return }
+        guard let url = URL(string: video.url) else { return }
         let newPlayer = AVPlayer(url: url)
         self.player = newPlayer
     }

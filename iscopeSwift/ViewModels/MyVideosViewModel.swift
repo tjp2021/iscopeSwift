@@ -24,7 +24,7 @@ class MyVideosViewModel: ObservableObject {
         do {
             print("[MyVideosViewModel] Fetching videos for user: \(userId)")
             let snapshot = try await db.collection("videos")
-                .whereField("creatorId", isEqualTo: userId)
+                .whereField("userId", isEqualTo: userId)
                 .order(by: "createdAt", descending: true)
                 .getDocuments()
             
@@ -34,15 +34,18 @@ class MyVideosViewModel: ObservableObject {
                 let data = document.data()
                 return Video(
                     id: document.documentID,
+                    userId: data["userId"] as? String ?? "",
                     title: data["title"] as? String ?? "",
-                    description: data["description"] as? String ?? "",
-                    videoUrl: data["videoUrl"] as? String ?? "",
-                    creatorId: data["creatorId"] as? String ?? "",
+                    description: data["description"] as? String,
+                    url: data["url"] as? String ?? "",
+                    thumbnailUrl: data["thumbnailUrl"] as? String,
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
+                    viewCount: data["viewCount"] as? Int ?? 0,
                     likeCount: data["likeCount"] as? Int ?? 0,
                     commentCount: data["commentCount"] as? Int ?? 0,
-                    isLiked: false,
-                    viewCount: data["viewCount"] as? Int ?? 0
+                    transcriptionStatus: data["transcriptionStatus"] as? String,
+                    transcriptionText: data["transcriptionText"] as? String,
+                    transcriptionSegments: nil
                 )
             }
         } catch {
@@ -53,20 +56,16 @@ class MyVideosViewModel: ObservableObject {
     }
     
     func deleteVideo(_ video: Video) async {
-        guard let videoId = video.id else {
-            error = "Invalid video ID"
-            showError = true
-            return
-        }
-        
         do {
-            print("[MyVideosViewModel] Deleting video: \(videoId)")
+            print("[MyVideosViewModel] Deleting video: \(video.id)")
             
             // Delete video document
-            try await db.collection("videos").document(videoId).delete()
+            try await db.collection("videos").document(video.id).delete()
             
             // Remove from local array
-            videos.removeAll { $0.id == videoId }
+            if let index = videos.firstIndex(where: { $0.id == video.id }) {
+                videos.remove(at: index)
+            }
             
             print("[MyVideosViewModel] Successfully deleted video")
         } catch {

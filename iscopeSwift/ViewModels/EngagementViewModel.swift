@@ -11,6 +11,7 @@ class EngagementViewModel: ObservableObject {
     @Published var isTogglingLike = false
     @Published var showError = false
     @Published var hasMoreComments = true
+    @Published private var likedVideoIds: Set<String> = []
     
     private let db = Firestore.firestore()
     private var lastCommentDocument: DocumentSnapshot?
@@ -18,50 +19,56 @@ class EngagementViewModel: ObservableObject {
     
     // MARK: - Like Functions
     
-    func toggleLike(for video: Video) async -> Video {
-        guard !isTogglingLike,
-              let videoId = video.id,
-              let userId = Auth.auth().currentUser?.uid else { return video }
-        
-        isTogglingLike = true
-        defer { isTogglingLike = false }
-        
-        var updatedVideo = video
+    func isVideoLiked(_ video: Video) -> Bool {
+        return likedVideoIds.contains(video.id)
+    }
+    
+    func handleLikeAction(for video: Video) async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
         
         do {
-            let videoRef = db.collection("videos").document(videoId)
-            let likeRef = videoRef.collection("likes").document(userId)
+            let likeRef = db.collection("videos").document(video.id).collection("likes").document(userId)
+            let videoRef = db.collection("videos").document(video.id)
             
-            // Get documents outside transaction
             let likeDoc = try await likeRef.getDocument()
-            let videoDoc = try await videoRef.getDocument()
-            let currentLikeCount = videoDoc.data()?["likeCount"] as? Int ?? 0
+            let isCurrentlyLiked = likeDoc.exists
             
-            let _ = try await db.runTransaction({ (transaction, errorPointer) -> Any? in
-                if likeDoc.exists {
-                    // Unlike
-                    transaction.deleteDocument(likeRef)
-                    transaction.updateData(["likeCount": currentLikeCount - 1], forDocument: videoRef)
-                    updatedVideo.isLiked = false
-                    updatedVideo.likeCount = currentLikeCount - 1
-                } else {
-                    // Like
-                    transaction.setData([:], forDocument: likeRef)
-                    transaction.updateData(["likeCount": currentLikeCount + 1], forDocument: videoRef)
-                    updatedVideo.isLiked = true
-                    updatedVideo.likeCount = currentLikeCount + 1
-                }
-                
-                return nil
-            })
-            
-            print("[EngagementViewModel] Successfully toggled like")
-            return updatedVideo
+            if isCurrentlyLiked {
+                // Unlike
+                try await likeRef.delete()
+                let updateData: [String: Any] = ["likeCount": FieldValue.increment(Int64(-1))]
+                try await videoRef.updateData(updateData)
+                likedVideoIds.remove(video.id)
+            } else {
+                // Like
+                let likeData: [String: Any] = ["createdAt": FieldValue.serverTimestamp()]
+                try await likeRef.setData(likeData)
+                let updateData: [String: Any] = ["likeCount": FieldValue.increment(Int64(1))]
+                try await videoRef.updateData(updateData)
+                likedVideoIds.insert(video.id)
+            }
         } catch {
             print("[EngagementViewModel] Error toggling like: \(error.localizedDescription)")
-            self.error = error.localizedDescription
-            self.showError = true
-            return video
+        }
+    }
+    
+    func loadLikedStatus(for video: Video) async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        do {
+            let likeDoc = try await db.collection("videos")
+                .document(video.id)
+                .collection("likes")
+                .document(userId)
+                .getDocument()
+            
+            if likeDoc.exists {
+                likedVideoIds.insert(video.id)
+            } else {
+                likedVideoIds.remove(video.id)
+            }
+        } catch {
+            print("[EngagementViewModel] Error loading like status: \(error.localizedDescription)")
         }
     }
     
