@@ -130,11 +130,16 @@ const server = http.createServer(async (req, res) => {
                     console.log('S3 params:', params);
 
                     const uploadURL = s3.getSignedUrl('putObject', params);
-                    console.log('Generated upload URL:', uploadURL);
+                    const downloadURL = s3.getSignedUrl('getObject', {
+                        Bucket: 'iscope',
+                        Key: videoKey,
+                        Expires: 60 * 60 * 24 * 7 // 7 days
+                    });
                     
                     const responseBody = { 
                         uploadURL: uploadURL,
-                        videoKey: videoKey
+                        videoKey: videoKey,
+                        downloadURL: downloadURL
                     };
                     console.log('Sending response:', JSON.stringify(responseBody, null, 2));
                     
@@ -171,46 +176,66 @@ const server = http.createServer(async (req, res) => {
             });
 
             req.on('end', async () => {
+                let videoId;
                 try {
                     console.log('Request body:', body);
-                    const { videoUrl, videoId } = JSON.parse(body);
-                    console.log('Processing video from URL:', videoUrl);
+                    const parsedBody = JSON.parse(body);
+                    videoId = parsedBody.videoId;
+                    console.log('Processing transcription for videoId:', videoId);
                     
                     // Set initial transcription status
                     await db.collection('videos').doc(videoId).update({
                         transcriptionStatus: 'pending',
-                        transcriptionText: null
+                        transcriptionText: null,
+                        transcriptionSegments: null
                     });
                     
-                    // Use the new processTranscription function
-                    const transcription = await processTranscription(videoUrl, videoId);
+                    // Get the video document to use the stored download URL
+                    const videoDoc = await db.collection('videos').doc(videoId).get();
+                    if (!videoDoc.exists) {
+                        throw new Error('Video document not found');
+                    }
+                    
+                    const videoData = videoDoc.data();
+                    const downloadURL = videoData.url;
+                    
+                    console.log('Using download URL for transcription:', downloadURL);
+                    
+                    // Use the download URL for transcription
+                    const transcription = await processTranscription(downloadURL, videoId);
                     
                     // Update Firestore with completed transcription
                     await db.collection('videos').doc(videoId).update({
                         transcriptionStatus: 'completed',
-                        transcriptionText: transcription.text
+                        transcriptionText: transcription.text,
+                        transcriptionSegments: transcription.segments
                     });
 
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ 
                         jobId: videoId,
                         status: "completed",
-                        transcriptUrl: videoUrl,
-                        text: transcription.text
+                        transcriptUrl: downloadURL,
+                        text: transcription.text,
+                        segments: transcription.segments
                     }));
                     console.log('Successfully sent transcription response');
                 } catch (error) {
                     console.error('Transcription error:', error);
                     console.error('Error stack:', error.stack);
                     
-                    // Update Firestore with failed status
-                    try {
-                        await db.collection('videos').doc(videoId).update({
-                            transcriptionStatus: 'failed',
-                            transcriptionText: null
-                        });
-                    } catch (updateError) {
-                        console.error('Failed to update error status:', updateError);
+                    // Update Firestore with failed status if we have the videoId
+                    if (videoId) {
+                        try {
+                            await db.collection('videos').doc(videoId).update({
+                                transcriptionStatus: 'failed',
+                                transcriptionText: null,
+                                transcriptionSegments: null
+                            });
+                            console.log('Updated Firestore with failed status');
+                        } catch (updateError) {
+                            console.error('Failed to update error status:', updateError);
+                        }
                     }
                     
                     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -371,7 +396,7 @@ async function createFormDataWithFile(buffer, filename = 'video.mp4') {
     formData.append('model', 'whisper-1');
     formData.append('language', 'en');
     formData.append('response_format', 'verbose_json');
-    formData.append('timestamp_granularities', ['word', 'segment']);
+    formData.append('timestamp_granularity', 'word');
     return formData;
 }
 
@@ -468,11 +493,13 @@ async function processTranscription(videoUrl, videoId) {
             text: segment.text,
             startTime: segment.start,
             endTime: segment.end,
-            words: segment.words ? segment.words.map(word => ({
-                text: word.text,
-                startTime: word.start,
-                endTime: word.end
-            })) : undefined
+            ...(segment.words && {
+                words: segment.words.map(word => ({
+                    text: word.text,
+                    startTime: word.start,
+                    endTime: word.end
+                }))
+            })
         }));
         
         // Update Firestore

@@ -2,6 +2,31 @@ import SwiftUI
 import AVKit
 import Combine
 
+// Add CaptionManager before VideoPlayerManager
+class CaptionManager: ObservableObject {
+    @Published var currentText: String = ""
+    private var segments: [TranscriptionSegment] = []
+    
+    func updateSegments(_ segments: [TranscriptionSegment]?) {
+        print("[CaptionManager] Updating segments: \(segments?.count ?? 0) segments")
+        self.segments = segments ?? []
+    }
+    
+    func updateForTime(_ time: Double) {
+        // Find the segment that corresponds to the current time
+        if let segment = segments.first(where: { time >= $0.startTime && time <= $0.endTime }) {
+            if currentText != segment.text {
+                print("[CaptionManager] Updating caption at time \(time): \(segment.text)")
+                currentText = segment.text
+            }
+        } else {
+            if !currentText.isEmpty {
+                currentText = ""
+            }
+        }
+    }
+}
+
 // Player Manager class to handle KVO
 class VideoPlayerManager: NSObject, ObservableObject {
     @Published var isLoading = true
@@ -12,10 +37,13 @@ class VideoPlayerManager: NSObject, ObservableObject {
     private var playerItemContext = 0
     private var timeObserverToken: Any?
     private var cancellables = Set<AnyCancellable>()
+    private var captionManager: CaptionManager?
     
-    func setupPlayer(for url: URL) -> AVPlayer {
+    func setupPlayer(for url: URL, captionManager: CaptionManager) -> AVPlayer {
         print("[VideoPlayerManager] Starting setup for URL: \(url)")
         cleanup()
+        
+        self.captionManager = captionManager
         
         let playerItem = AVPlayerItem(url: url)
         print("[VideoPlayerManager] Created AVPlayerItem")
@@ -32,15 +60,13 @@ class VideoPlayerManager: NSObject, ObservableObject {
             self.error = error
         }
         
-        // Add periodic time observer only in DEBUG mode
-        #if DEBUG
-        let interval = CMTime(seconds: 2, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        // Add time observer for captions
+        let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             self?.currentTime = time.seconds
-            print("[VideoPlayerManager] Current playback time: \(time.seconds)")
+            self?.captionManager?.updateForTime(time.seconds)
         }
         print("[VideoPlayerManager] Added periodic time observer")
-        #endif
         
         playerItem.addObserver(
             self,
@@ -181,11 +207,11 @@ private struct DebugOverlay: View {
 
 // Captions overlay component
 private struct CaptionsOverlay: View {
-    let transcriptionText: String?
+    @ObservedObject var captionManager: CaptionManager
     
     var body: some View {
-        if let text = transcriptionText {
-            Text(text)
+        if !captionManager.currentText.isEmpty {
+            Text(captionManager.currentText)
                 .font(.system(size: 18, weight: .medium))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
@@ -278,6 +304,7 @@ struct VideoPageView: View {
     @Binding var video: Video
     @ObservedObject var viewModel: VideoFeedViewModel
     @StateObject private var playerManager = VideoPlayerManager()
+    @StateObject private var captionManager = CaptionManager()
     @StateObject private var engagementViewModel = VideoEngagementViewModel()
     @State private var player: AVPlayer?
     @State private var showError = false
@@ -391,7 +418,7 @@ struct VideoPageView: View {
                 if showCaptions {
                     VStack {
                         Spacer()
-                        CaptionsOverlay(transcriptionText: video.transcriptionText)
+                        CaptionsOverlay(captionManager: captionManager)
                             .padding(.bottom, 100)
                     }
                 }
@@ -412,6 +439,7 @@ struct VideoPageView: View {
             print("[VideoPageView] View appearing")
             print("[VideoPageView] Video data: id=\(video.id), url=\(video.url)")
             isVisible = true
+            captionManager.updateSegments(video.transcriptionSegments)
             setupVideo()
         }
         .onDisappear {
@@ -428,6 +456,10 @@ struct VideoPageView: View {
         }
         .onChange(of: viewModel.isMuted) { _, isMuted in
             player?.isMuted = isMuted
+        }
+        .onChange(of: video.transcriptionSegments) { _, newSegments in
+            print("[VideoPageView] Transcription segments updated")
+            captionManager.updateSegments(newSegments)
         }
         .sheet(isPresented: $showingComments) {
             CommentsView(video: $video)
@@ -475,7 +507,7 @@ struct VideoPageView: View {
         
         // Use VideoPlayerManager to set up the player
         print("[VideoPageView] Setting up player with VideoPlayerManager")
-        player = playerManager.setupPlayer(for: url)
+        player = playerManager.setupPlayer(for: url, captionManager: captionManager)
         player?.isMuted = viewModel.isMuted
         print("[VideoPageView] Player setup complete - isMuted: \(viewModel.isMuted)")
         player?.play()

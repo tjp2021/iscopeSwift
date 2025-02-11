@@ -28,7 +28,6 @@ class VideoFeedViewModel: ObservableObject {
             Task { @MainActor in
                 self?.isOnline = path.status == .satisfied
                 if path.status == .satisfied {
-                    // Network is back, retry failed operations
                     self?.retryFailedOperations()
                 }
             }
@@ -39,11 +38,9 @@ class VideoFeedViewModel: ObservableObject {
     private func retryFailedOperations() {
         retryTask?.cancel()
         retryTask = Task {
-            // Retry loading videos if we have none
             if videos.isEmpty {
                 await fetchVideos()
             }
-            // Refresh existing video states
             for video in videos {
                 await refreshVideoState(video)
             }
@@ -52,7 +49,6 @@ class VideoFeedViewModel: ObservableObject {
     
     private func refreshVideoState(_ video: Video) async {
         guard !Task.isCancelled else { return }
-        // Refresh video metadata, likes, etc.
         do {
             let videoDoc = try await db.collection("videos").document(video.id).getDocument()
             if let updatedVideo = try? videoDoc.data(as: Video.self),
@@ -79,7 +75,6 @@ class VideoFeedViewModel: ObservableObject {
             let isCurrentlyLiked = likeDoc.exists
             
             if isCurrentlyLiked {
-                // Unlike
                 try await likeRef.delete()
                 let updateData: [String: Any] = ["likeCount": FieldValue.increment(Int64(-1))]
                 try await videoRef.updateData(updateData)
@@ -88,7 +83,6 @@ class VideoFeedViewModel: ObservableObject {
                     videos[index].likeCount -= 1
                 }
             } else {
-                // Like
                 let likeData: [String: Any] = ["createdAt": FieldValue.serverTimestamp()]
                 try await likeRef.setData(likeData)
                 let updateData: [String: Any] = ["likeCount": FieldValue.increment(Int64(1))]
@@ -114,26 +108,21 @@ class VideoFeedViewModel: ObservableObject {
     
     func fetchVideos() async {
         do {
-            print("[VideoFeedViewModel] Starting to fetch videos")
+            print("[VideoFeedViewModel] Fetching videos...")
             let snapshot = try await db.collection("videos")
                 .order(by: "createdAt", descending: true)
                 .getDocuments()
             
-            print("[VideoFeedViewModel] Got \(snapshot.documents.count) videos from Firestore")
-            
             let videos = snapshot.documents.compactMap { document -> Video? in
                 let data = document.data()
-                print("[VideoFeedViewModel] Processing video document: \(document.documentID)")
-                print("[VideoFeedViewModel] Full document data: \(data)")
-                print("[VideoFeedViewModel] URL field type: \(type(of: data["videoUrl"]))")
-                print("[VideoFeedViewModel] URL field value: \(data["videoUrl"] ?? "missing")")
-                
+                let url = data["videoUrl"] as? String ?? ""
+                print("[VideoFeedViewModel] Found video with URL: \(url)")
                 return Video(
                     id: document.documentID,
                     userId: data["userId"] as? String ?? "",
                     title: data["title"] as? String ?? "",
                     description: data["description"] as? String,
-                    url: data["videoUrl"] as? String ?? "",
+                    url: url,
                     thumbnailUrl: data["thumbnailUrl"] as? String,
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     viewCount: data["viewCount"] as? Int ?? 0,
@@ -145,61 +134,111 @@ class VideoFeedViewModel: ObservableObject {
                 )
             }
             
-            print("[VideoFeedViewModel] Processed \(videos.count) valid videos")
-            for (index, video) in videos.enumerated() {
-                print("[VideoFeedViewModel] Video \(index): ID=\(video.id), URL=\(video.url)")
-            }
+            print("[VideoFeedViewModel] Fetched \(videos.count) videos")
             
             self.videos = videos
             self.lastDocument = snapshot.documents.last
             self.error = nil
             
-            // Set up real-time listeners for transcription updates
             setupTranscriptionListeners()
             
         } catch {
+            print("[VideoFeedViewModel] Error: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
     
     private func setupTranscriptionListeners() {
+        print("[VideoFeedViewModel] Setting up transcription listeners")
         for listener in transcriptionListeners.values {
             listener.remove()
         }
         transcriptionListeners.removeAll()
         
         for video in videos {
+            print("[VideoFeedViewModel] Setting up listener for video \(video.id)")
             let listener = db.collection("videos").document(video.id)
                 .addSnapshotListener { [weak self] documentSnapshot, error in
-                    guard let self = self else { return }
+                    guard let self = self else { 
+                        print("[VideoFeedViewModel] Self is nil in listener")
+                        return 
+                    }
                     
                     if let error = error {
+                        print("[VideoFeedViewModel] Listener error for video \(video.id): \(error)")
                         self.error = error.localizedDescription
                         return
                     }
                     
-                    guard let document = documentSnapshot, document.exists else { return }
+                    guard let document = documentSnapshot, document.exists else {
+                        print("[VideoFeedViewModel] No document found for video \(video.id)")
+                        return
+                    }
                     
                     let data = document.data() ?? [:]
+                    print("[VideoFeedViewModel] Received update for video \(video.id)")
+                    print("[VideoFeedViewModel] Transcription status: \(data["transcriptionStatus"] as? String ?? "nil")")
+                    
                     let transcriptionStatus = data["transcriptionStatus"] as? String
                     let transcriptionText = data["transcriptionText"] as? String
+                    
+                    // Debug raw transcription segments data
+                    if let rawSegments = try? document.get("transcriptionSegments") {
+                        print("[VideoFeedViewModel] Raw segments type: \(type(of: rawSegments))")
+                        print("[VideoFeedViewModel] Raw segments: \(rawSegments)")
+                    } else {
+                        print("[VideoFeedViewModel] No raw segments found in document")
+                    }
+                    
+                    let transcriptionSegments = try? document.get("transcriptionSegments") as? [[String: Any]]
                     
                     if let index = self.videos.firstIndex(where: { $0.id == video.id }) {
                         Task { @MainActor in
                             var updatedVideo = self.videos[index]
                             updatedVideo.transcriptionStatus = transcriptionStatus
                             updatedVideo.transcriptionText = transcriptionText
+                            
+                            if let segments = transcriptionSegments {
+                                print("[VideoFeedViewModel] Processing \(segments.count) segments for video \(video.id)")
+                                var parsedSegments: [TranscriptionSegment] = []
+                                
+                                for segmentData in segments {
+                                    if let text = segmentData["text"] as? String,
+                                       let startTime = segmentData["startTime"] as? Double,
+                                       let endTime = segmentData["endTime"] as? Double {
+                                        let segment = TranscriptionSegment(
+                                            text: text,
+                                            startTime: startTime,
+                                            endTime: endTime,
+                                            words: nil
+                                        )
+                                        parsedSegments.append(segment)
+                                        print("[VideoFeedViewModel] Parsed segment - text: \(text), time: \(startTime)-\(endTime)")
+                                    } else {
+                                        print("[VideoFeedViewModel] Failed to parse segment: \(segmentData)")
+                                    }
+                                }
+                                
+                                print("[VideoFeedViewModel] Successfully parsed \(parsedSegments.count) segments")
+                                updatedVideo.transcriptionSegments = parsedSegments
+                            } else {
+                                print("[VideoFeedViewModel] No segments to process for video \(video.id)")
+                            }
+                            
+                            print("[VideoFeedViewModel] Updating video in array with \(updatedVideo.transcriptionSegments?.count ?? 0) segments")
                             self.videos[index] = updatedVideo
                         }
+                    } else {
+                        print("[VideoFeedViewModel] Could not find video \(video.id) in videos array")
                     }
                 }
             
             transcriptionListeners[video.id] = listener
         }
+        print("[VideoFeedViewModel] Finished setting up \(transcriptionListeners.count) listeners")
     }
     
     deinit {
-        // Clean up listeners
         for listener in transcriptionListeners.values {
             listener.remove()
         }
@@ -237,7 +276,7 @@ class VideoFeedViewModel: ObservableObject {
                     commentCount: data["commentCount"] as? Int ?? 0,
                     transcriptionStatus: data["transcriptionStatus"] as? String,
                     transcriptionText: data["transcriptionText"] as? String,
-                    transcriptionSegments: nil // We'll fetch this separately if needed
+                    transcriptionSegments: nil
                 )
             }
             
@@ -266,18 +305,16 @@ class VideoFeedViewModel: ObservableObject {
         return data
     }
     
-    // MARK: - Development Helpers
-    
     #if DEBUG
     func seedTestData() async {
-        print("[VideoFeedViewModel] Starting to seed test data")
+        print("[VideoFeedViewModel] Seeding test data...")
         let testVideos = [
             Video(
                 id: UUID().uuidString,
                 userId: "test_user",
-                title: "Big Buck Bunny",
+                title: "Test Video 1",
                 description: "Test video with valid URL",
-                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
                 thumbnailUrl: nil,
                 createdAt: Date(),
                 viewCount: 0,
@@ -290,9 +327,9 @@ class VideoFeedViewModel: ObservableObject {
             Video(
                 id: UUID().uuidString,
                 userId: "test_user",
-                title: "Elephant Dream",
+                title: "Test Video 2",
                 description: "Another test video with valid URL",
-                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+                url: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
                 thumbnailUrl: nil,
                 createdAt: Date().addingTimeInterval(-86400),
                 viewCount: 0,
@@ -305,11 +342,10 @@ class VideoFeedViewModel: ObservableObject {
         ]
         
         do {
-            print("[VideoFeedViewModel] Creating test videos in Firestore")
             for video in testVideos {
                 let data = createVideoData(video)
-                print("[VideoFeedViewModel] Adding video with URL: \(video.url)")
                 try await db.collection("videos").document(video.id).setData(data)
+                print("[VideoFeedViewModel] Adding test video with URL: \(video.url)")
             }
             print("[VideoFeedViewModel] Test data seeded successfully")
             await fetchVideos()
@@ -319,9 +355,8 @@ class VideoFeedViewModel: ObservableObject {
         }
     }
     
-    // Helper function to seed test data and verify URLs
     func verifyAndSeedTestData() async {
-        print("[VideoFeedViewModel] Verifying existing videos...")
+        print("[VideoFeedViewModel] Verifying videos...")
         let snapshot = try? await db.collection("videos").getDocuments()
         let hasValidVideos = snapshot?.documents.contains { doc in
             let data = doc.data()
@@ -334,6 +369,28 @@ class VideoFeedViewModel: ObservableObject {
         } else {
             print("[VideoFeedViewModel] Valid videos found, skipping test data seeding")
         }
+    }
+    
+    func clearAllVideos() async {
+        print("[VideoFeedViewModel] Clearing all videos from database...")
+        do {
+            let snapshot = try await db.collection("videos").getDocuments()
+            for document in snapshot.documents {
+                print("[VideoFeedViewModel] Deleting video: \(document.documentID)")
+                try await document.reference.delete()
+            }
+            print("[VideoFeedViewModel] Successfully cleared all videos")
+            self.videos = []
+        } catch {
+            print("[VideoFeedViewModel] Error clearing videos: \(error.localizedDescription)")
+            self.error = error.localizedDescription
+        }
+    }
+
+    func resetAndSeedTestData() async {
+        print("[VideoFeedViewModel] Starting database reset and seed...")
+        await clearAllVideos()
+        await seedTestData()
     }
     #endif
 }

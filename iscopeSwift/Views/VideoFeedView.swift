@@ -11,6 +11,8 @@ struct VideoFeedView: View {
     @State private var showingSettingsSheet = false
     @State private var showError = false
     @State private var currentIndex = 0
+    @State private var showingProfile = false
+    @State private var showResetConfirmation = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -98,6 +100,9 @@ struct VideoFeedView: View {
         .sheet(isPresented: $showingSettingsSheet) {
             SettingsProfileView(authViewModel: authViewModel)
         }
+        .sheet(isPresented: $showingProfile) {
+            MyVideosView()
+        }
         .task {
             print("[VideoFeedView] Task started - Fetching videos")
             await viewModel.fetchVideos()
@@ -106,6 +111,16 @@ struct VideoFeedView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(viewModel.error ?? "An unknown error occurred")
+        }
+        .alert("Reset Videos", isPresented: $showResetConfirmation) {
+            Button("Reset", role: .destructive) {
+                Task {
+                    await viewModel.resetAndSeedTestData()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will delete all existing videos and add test videos. Are you sure?")
         }
         .onAppear {
             print("[VideoFeedView] View appeared")

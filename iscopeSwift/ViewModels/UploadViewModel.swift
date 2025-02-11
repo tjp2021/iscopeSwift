@@ -20,7 +20,7 @@ class UploadViewModel: ObservableObject {
     #endif
     
     // Step 1: Ask our server for a pre-signed URL
-    func fetchPresignedUrl(fileName: String) async throws -> (uploadURL: String, videoKey: String) {
+    func fetchPresignedUrl(fileName: String) async throws -> (uploadURL: String, downloadURL: String, videoKey: String) {
         let serverUrl = "\(serverBaseUrl)/generate-presigned-url"
         
         print("🔄 Attempting server connection to: \(serverUrl)")
@@ -69,10 +69,12 @@ class UploadViewModel: ObservableObject {
             struct PresignedUrlResponse: Codable {
                 let uploadURL: String
                 let videoKey: String
+                let downloadURL: String
                 
                 enum CodingKeys: String, CodingKey {
                     case uploadURL = "uploadURL"
                     case videoKey = "videoKey"
+                    case downloadURL = "downloadURL"
                 }
             }
             
@@ -80,7 +82,7 @@ class UploadViewModel: ObservableObject {
                 let decoder = JSONDecoder()
                 let json = try decoder.decode(PresignedUrlResponse.self, from: data)
                 print("✅ Successfully decoded server response: \(json)")
-                return (json.uploadURL, json.videoKey)
+                return (json.uploadURL, json.downloadURL, json.videoKey)
             } catch {
                 print("❌ JSON Decoding error: \(error)")
                 print("❌ Failed to decode data: \(String(data: data, encoding: .utf8) ?? "nil")")
@@ -142,20 +144,19 @@ class UploadViewModel: ObservableObject {
     }
     
     // Step 3: Store video metadata in Firestore
-    func storeVideoMetadata(videoKey: String, title: String, description: String) async throws -> String {
+    func storeVideoMetadata(videoKey: String, downloadURL: String, title: String, description: String) async throws -> String {
         guard let userId = Auth.auth().currentUser?.uid else {
             throw NSError(domain: "Auth", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
         }
         
         let videoId = UUID().uuidString
-        let s3URL = "https://iscope.s3.us-east-2.amazonaws.com/\(videoKey)"
         
         let newVideo = Video(
             id: videoId,
             userId: userId,
             title: title,
             description: description,
-            url: s3URL,
+            url: downloadURL,
             thumbnailUrl: nil,
             createdAt: Date(),
             viewCount: 0,
@@ -264,16 +265,16 @@ class UploadViewModel: ObservableObject {
             
             let fileName = "\(UUID().uuidString).mp4"
             
-            // Step 1: Get pre-signed URL
-            print("Fetching presigned URL...")
-            let (presignedUrl, videoKey) = try await fetchPresignedUrl(fileName: fileName)
-            print("Got presigned URL: \(presignedUrl)")
+            // Step 1: Get pre-signed URLs
+            print("Fetching presigned URLs...")
+            let (uploadURL, downloadURL, videoKey) = try await fetchPresignedUrl(fileName: fileName)
+            print("Got presigned URLs - Upload: \(uploadURL), Download: \(downloadURL)")
             
             uploadProgress = 0.3
             
             // Step 2: Upload to S3
             print("Uploading to S3...")
-            let uploadSuccess = try await uploadToS3(presignedUrl: presignedUrl, videoData: compressedVideoData)
+            let uploadSuccess = try await uploadToS3(presignedUrl: uploadURL, videoData: compressedVideoData)
             guard uploadSuccess else {
                 print("Failed to upload to S3")
                 throw NSError(domain: "Upload", code: -1, 
@@ -283,23 +284,22 @@ class UploadViewModel: ObservableObject {
             
             uploadProgress = 0.7
             
-            // Step 3: Store metadata
+            // Step 3: Store metadata with download URL
             print("Storing metadata...")
-            let videoId = try await storeVideoMetadata(videoKey: videoKey, title: title, description: description)
+            let videoId = try await storeVideoMetadata(videoKey: videoKey, downloadURL: downloadURL, title: title, description: description)
             print("Stored metadata with videoId: \(videoId)")
             
             uploadProgress = 0.9
             
-            // Step 4: Notify server to start transcription
+            // Step 4: Notify server to start transcription with download URL
             print("Notifying server for transcription...")
-            let s3URL = "https://iscope.s3.us-east-2.amazonaws.com/\(videoKey)"
-            try await notifyTranscriptionServer(videoUrl: s3URL, videoId: videoId)
+            try await notifyTranscriptionServer(videoUrl: downloadURL, videoId: videoId)
             print("Transcription process started")
             
             uploadProgress = 1.0
             isUploading = false
             
-            return (videoUrl: s3URL, videoId: videoId)
+            return (videoUrl: downloadURL, videoId: videoId)
         } catch {
             print("Upload error: \(error.localizedDescription)")
             print("Error details: \(String(describing: error))")
