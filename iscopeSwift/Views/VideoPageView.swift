@@ -638,7 +638,7 @@ struct VideoPageView: View {
         }
         .sheet(isPresented: $showingTranscript) {
             if let segments = video.transcriptionSegments {
-                TranscriptView(segments: segments)
+                TranscriptView(segments: segments, player: player)
             }
         }
     }
