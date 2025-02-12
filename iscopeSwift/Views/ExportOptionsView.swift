@@ -48,8 +48,14 @@ struct ExportOptionsView: View {
                             }
                         case .completed:
                             if let url = job.downloadUrl {
-                                Link("Download Video", destination: URL(string: url)!)
-                                    .buttonStyle(.borderedProminent)
+                                VStack(spacing: 12) {
+                                    Link("Download Video", destination: URL(string: url)!)
+                                        .buttonStyle(.borderedProminent)
+                                    Button("Done") {
+                                        dismiss()
+                                    }
+                                    .foregroundColor(.blue)
+                                }
                             }
                         case .failed:
                             Text(job.error ?? "Export failed")

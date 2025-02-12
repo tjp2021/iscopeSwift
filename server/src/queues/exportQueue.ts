@@ -1,7 +1,10 @@
 import Queue from 'bull'
-import { processVideo, generateSubtitleFile, downloadVideo } from '../services/videoProcessor'
-import { db } from '../firebase'
+import { processVideoJob } from '../services/videoProcessor.js'
+import { db } from '../config/firebase.js'
 import { Storage } from '@google-cloud/storage'
+import path from 'path'
+import os from 'os'
+import fs from 'fs'
 
 const storage = new Storage()
 const bucket = storage.bucket(process.env.FIREBASE_STORAGE_BUCKET!)
@@ -22,7 +25,7 @@ const exportQueue = new Queue<ExportJobData>('video-export', {
 
 // Process jobs
 exportQueue.process(async (job) => {
-  const { jobId, videoId } = job.data
+  const { jobId, videoId, language } = job.data
   const jobRef = db.collection('exportJobs').doc(jobId)
   
   try {
@@ -39,12 +42,24 @@ exportQueue.process(async (job) => {
     }
     const video = videoDoc.data()!
     
-    if (!video.transcriptionSegments || video.transcriptionSegments.length === 0) {
-      throw new Error('No transcription segments found')
+    // Get the correct segments based on language
+    const segments = language === 'en' 
+      ? video.transcriptionSegments 
+      : video.translations?.[language]?.segments
+    
+    if (!segments || segments.length === 0) {
+      throw new Error(`No segments found for language: ${language}`)
     }
     
-    // Process the video and get the output path
-    const outputPath = await processVideoJob(video, job)
+    // Get the export job to access caption settings
+    const jobDoc = await jobRef.get()
+    if (!jobDoc.exists) {
+      throw new Error('Export job not found')
+    }
+    const exportJob = jobDoc.data()!
+    
+    // Process the video with the correct segments
+    const outputPath = await processVideoJob(job)
     
     // Upload to storage
     const outputFile = bucket.file(`exports/${jobId}/video.mp4`)
@@ -76,7 +91,7 @@ exportQueue.process(async (job) => {
     // Update job as failed
     await jobRef.update({
       status: 'failed',
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
       updatedAt: new Date()
     })
     

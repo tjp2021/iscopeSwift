@@ -595,7 +595,7 @@ struct VideoPageView: View {
             CaptionSettingsView(showCaptions: $showCaptions, viewModel: captionSettings)
         }
         .sheet(isPresented: $showingTranscript) {
-            if let segments = video.transcriptionSegments {
+            if let segments = video.translations?[captionManager.currentLanguage]?.segments ?? video.transcriptionSegments {
                 TranscriptView(segments: segments, player: player)
             }
         }
