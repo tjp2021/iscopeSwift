@@ -51,47 +51,6 @@
   - [ ] Batch translation
   - [ ] Regional variants
 
-### 4. Basic File Management
-- [ ] Core Features
-  - [ ] Save caption files
-  - [ ] Basic version control
-  - [ ] Simple backup
-  - [ ] File format conversion
-
-## Enhanced Features ✨
-
-### 1. Advanced Caption Customization
-- [ ] Style Editor
-  - [ ] Advanced font controls
-  - [ ] Custom color picker
-  - [ ] Advanced positioning
-  - [ ] Style presets
-  - [ ] Custom animations
-
-### 2. Professional Transcript Tools
-- [ ] Advanced Features
-  - [ ] Full text editing
-  - [ ] Advanced search
-  - [ ] Timestamp editing
-  - [ ] Multiple export formats
-  - [ ] Collaboration tools
-
-### 3. Advanced Translation Tools
-- [ ] Pro Features
-  - [x] AI context awareness
-  - [ ] Custom terminology
-  - [ ] Translation memory
-  - [ ] Quality metrics
-  - [ ] Professional export
-
-### 4. Advanced File Management
-- [ ] Pro Features
-  - [ ] Cloud sync
-  - [ ] Advanced versioning
-  - [ ] Conflict resolution
-  - [ ] Automated backups
-  - [ ] Format conversion
-
 ## Infrastructure & DevOps 🛠️
 
 ### Core Infrastructure (Must Have) ✅
@@ -107,13 +66,6 @@
   - [x] Performance tracking
   - [x] Usage metrics
   - [ ] Cost optimization
-
-### Enhanced Infrastructure
-- [ ] Advanced Features
-  - [ ] Auto-scaling
-  - [ ] Geographic distribution
-  - [ ] Advanced security
-  - [ ] Disaster recovery
 
 ## Progress Tracking 📊
 
@@ -132,7 +84,6 @@
 ### Next Up
 1. Enhanced Caption Styling (Nice to Have)
 2. Basic Transcript Management (Nice to Have)
-3. Advanced Translation Features (Enhanced)
 
 ### Notes
 - Priority: Moving to Nice to Have features after completing MVP
@@ -157,5 +108,4 @@
 3. Known Issues to Address
    - Font size customization needed
    - Caption positioning improvements
-   - Style customization options
-   - Advanced translation features (terminology, memory) 
+   - Style customization options 

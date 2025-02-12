@@ -219,6 +219,7 @@ private struct DebugOverlay: View {
 private struct CaptionsOverlay: View {
     @ObservedObject var captionManager: CaptionManager
     @StateObject private var translationViewModel = TranslationViewModel()
+    @StateObject private var captionSettings = CaptionSettingsViewModel()
     @Binding var video: Video
     
     var body: some View {
@@ -228,7 +229,7 @@ private struct CaptionsOverlay: View {
             // Caption text
             if !captionManager.currentText.isEmpty {
                 Text(captionManager.currentText)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: captionSettings.fontSize, weight: .semibold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
@@ -429,6 +430,7 @@ struct VideoPageView: View {
     @State private var showCaptions = true
     @State private var showingUploadSheet = false
     @State private var showingProfile = false
+    @State private var showingCaptionSettings = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -494,17 +496,7 @@ struct VideoPageView: View {
                                     .foregroundColor(.white)
                             }
                             
-                            // Captions Button
-                            Button(action: {
-                                print("[DEBUG] Toggling captions. Current state: \(showCaptions)")
-                                print("[DEBUG] Transcription status: \(video.transcriptionStatus ?? "nil")")
-                                print("[DEBUG] Has segments: \(video.transcriptionSegments?.isEmpty == false)")
-                                showCaptions.toggle()
-                            }) {
-                                Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
-                                    .font(.system(size: 30))
-                                    .foregroundColor(.white)
-                            }
+                            // Move Captions Button to bottom controls
                             
                             // Add Video Button
                             Button(action: {
@@ -530,6 +522,33 @@ struct VideoPageView: View {
                     }
                 }
                 
+                // Add bottom controls overlay
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        
+                        // Captions Button
+                        Button(action: {
+                            showingCaptionSettings = true
+                        }) {
+                            HStack {
+                                Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
+                                    .font(.system(size: 24))
+                                Text(showCaptions ? "CC" : "CC")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.black.opacity(0.75))
+                            .cornerRadius(8)
+                            .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 20)
+                }
+                
                 // Captions Overlay
                 if showCaptions && video.transcriptionSegments?.isEmpty == false {
                     VStack {
@@ -538,16 +557,6 @@ struct VideoPageView: View {
                             .padding(.bottom, 100)
                     }
                 }
-                
-                #if DEBUG
-                if isVisible {
-                    DebugOverlay(
-                        showCaptions: showCaptions,
-                        transcriptionStatus: video.transcriptionStatus,
-                        transcriptionText: video.transcriptionText
-                    )
-                }
-                #endif
             }
         }
         .background(Color.black)
@@ -585,6 +594,9 @@ struct VideoPageView: View {
         }
         .sheet(isPresented: $showingProfile) {
             MyVideosView()
+        }
+        .sheet(isPresented: $showingCaptionSettings) {
+            CaptionSettingsView(showCaptions: $showCaptions)
         }
     }
     
