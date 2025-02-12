@@ -151,3 +151,5 @@ node_modules/
 
 # Firebase Admin SDK
 server/serviceAccountKey.json
+
+dist/

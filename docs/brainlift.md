@@ -1570,3 +1570,111 @@ Anti-Patterns to Avoid:
   2. Mixing data transformation with business logic
   3. Inconsistent error handling
   4. Implicit type casting 
+
+## Video_Export_Analysis
+
+### Problem/Feature Overview
+Initial Requirements:
+- Export videos with translated captions in the selected language
+- Maintain caption styling and positioning consistent with the app
+- Handle video processing and subtitle embedding
+- Provide progress tracking and status updates
+
+Key Challenges:
+1. Language Selection and Segment Handling
+   - Need to correctly select between original and translated segments
+   - Must sync with the app's current language setting
+   - Handle missing translations gracefully
+
+2. Caption Styling Consistency
+   - Match app's visual appearance in exported video
+   - Handle font size scaling appropriately
+   - Maintain proper positioning and color settings
+
+3. Data Flow and State Management
+   - Client-side export job creation and monitoring
+   - Server-side video processing and subtitle embedding
+   - Progress tracking and status updates
+
+### Solution Attempts
+
+#### Attempt #1: Initial Implementation
+- Approach: Basic export with hardcoded English captions
+- Outcome: Failed - Only used original transcription segments
+- Failure Point: Did not consider language selection
+
+#### Attempt #2: Language-Aware Export
+- Approach: Added language parameter to export process
+- Outcome: Partial Success - Selected correct language but styling issues
+- Failure Point: Caption styling mismatch between app and export
+
+#### Attempt #3: Current Implementation
+- Approach: Full integration with language selection and styling
+- Components:
+  1. Client (ExportManager.swift):
+     - Creates export job with language and styling
+     - Monitors progress and status
+  2. Server (exportQueue.ts):
+     - Processes video with FFmpeg
+     - Handles language-specific segments
+     - Applies caption styling
+
+### Key Learnings
+
+Technical Insights:
+1. Segment Selection:
+   ```typescript
+   const segments = language === 'en' 
+     ? video.transcriptionSegments 
+     : video.translations?.[language]?.segments
+   ```
+   - Must check language before selecting segments
+   - Need proper fallback for missing translations
+
+2. Caption Styling:
+   ```typescript
+   const subtitleFilter = `subtitles=${escapedSubtitlePath}:force_style='` +
+     `Fontsize=${exportJob.captionSettings.fontSize * 0.8},` +
+     `FontName=Arial,` +
+     `PrimaryColour=${exportJob.captionSettings.captionColor}`
+   ```
+   - FFmpeg requires specific styling format
+   - Font size needs scaling adjustment
+   - Color format must match FFmpeg expectations
+
+3. Progress Tracking:
+   ```swift
+   for await updatedJob in exportManager.observeExportJob(job.id) {
+     exportJob = updatedJob
+     if updatedJob.status == .completed || updatedJob.status == .failed {
+       break
+     }
+   }
+   ```
+   - Real-time updates through Firestore
+   - Status and progress monitoring
+   - Error handling and user feedback
+
+### Recommendations
+
+1. Immediate Fixes:
+   - Add validation for segment availability before processing
+   - Implement proper error messages for missing translations
+   - Add retry logic for failed exports
+
+2. Improvements:
+   - Cache successful exports to prevent redundant processing
+   - Add preview capability before export
+   - Implement batch export for multiple languages
+
+3. Best Practices:
+   - Always validate segments before processing
+   - Maintain consistent styling between app and export
+   - Provide clear progress feedback to users
+   - Implement proper cleanup of temporary files
+
+4. Future Considerations:
+   - Support for custom fonts
+   - Additional caption styling options
+   - Batch export functionality
+   - Export presets for common use cases 

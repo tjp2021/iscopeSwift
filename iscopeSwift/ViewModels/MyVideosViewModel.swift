@@ -39,13 +39,44 @@ class MyVideosViewModel: ObservableObject {
                     data["createdAt"] = createdAtTimestamp.dateValue().timeIntervalSince1970 * 1000
                 }
                 
+                // Convert translations timestamps if they exist
+                if var translations = data["translations"] as? [String: [String: Any]] {
+                    for (language, var translationData) in translations {
+                        if let lastUpdatedTimestamp = translationData["lastUpdated"] as? Timestamp {
+                            translationData["lastUpdated"] = lastUpdatedTimestamp.dateValue().timeIntervalSince1970 * 1000
+                            translations[language] = translationData
+                        }
+                    }
+                    data["translations"] = translations
+                }
+                
+                // Parse transcription segments if they exist
+                var parsedSegments: [TranscriptionSegment]? = nil
+                if let segments = try? document.get("transcriptionSegments") as? [[String: Any]] {
+                    parsedSegments = segments.compactMap { segmentData -> TranscriptionSegment? in
+                        guard let text = segmentData["text"] as? String,
+                              let startTime = segmentData["startTime"] as? Double,
+                              let endTime = segmentData["endTime"] as? Double else {
+                            return nil
+                        }
+                        return TranscriptionSegment(
+                            text: text,
+                            startTime: startTime,
+                            endTime: endTime,
+                            words: nil
+                        )
+                    }
+                }
+                
                 // Convert to JSON and decode using our Codable implementation
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .millisecondsSince1970
                 
                 do {
                     let jsonData = try JSONSerialization.data(withJSONObject: data)
-                    return try decoder.decode(Video.self, from: jsonData)
+                    var video = try decoder.decode(Video.self, from: jsonData)
+                    video.transcriptionSegments = parsedSegments
+                    return video
                 } catch {
                     print("[ERROR] Failed to decode video data: \(error)")
                     return nil

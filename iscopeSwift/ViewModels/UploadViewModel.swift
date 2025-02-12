@@ -35,7 +35,11 @@ class UploadViewModel: ObservableObject {
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             
-            let body = ["fileName": fileName]
+            let body = [
+                "fileName": fileName,
+                "contentType": "video/mp4",
+                "isProfile": false
+            ] as [String: Any]
             let jsonData = try JSONSerialization.data(withJSONObject: body)
             request.httpBody = jsonData
             

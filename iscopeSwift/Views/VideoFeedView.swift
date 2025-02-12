@@ -48,26 +48,79 @@ struct VideoFeedView: View {
                 }
                 
                 if viewModel.videos.isEmpty && !viewModel.isRefreshing {
-                    VStack(spacing: 16) {
-                        Image(systemName: "video.slash")
-                            .font(.system(size: 48))
+                    VStack(spacing: 24) {
+                        Spacer()
+                        
+                        Image(systemName: "video.badge.plus")
+                            .font(.system(size: 64))
                             .foregroundColor(.white)
-                        Text("No videos available")
-                            .font(.headline)
+                        
+                        Text("Start Your Journey")
+                            .font(.title2)
+                            .fontWeight(.semibold)
                             .foregroundColor(.white)
-                        Button("Clear All Videos") {
-                            showClearConfirmation = true
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
-                        Button("Refresh") {
-                            Task {
-                                await viewModel.refreshVideos()
+                        
+                        Text("Upload your first video to get started")
+                            .font(.body)
+                            .foregroundColor(.white.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        
+                        VStack(spacing: 16) {
+                            Button {
+                                showingUploadSheet = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "plus.circle.fill")
+                                    Text("Upload Video")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
                             }
+                            .padding(.horizontal, 32)
+                            
+                            Button {
+                                showingMyVideosSheet = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "person.circle")
+                                    Text("My Videos")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.white.opacity(0.2))
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal, 32)
+                            
+                            #if DEBUG
+                            Button {
+                                Task {
+                                    await viewModel.seedTestData()
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "plus.square.fill.on.square.fill")
+                                    Text("Add Test Videos")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.orange)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal, 32)
+                            #endif
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.white)
+                        
+                        Spacer()
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
                 }
                 
                 if viewModel.isRefreshing {

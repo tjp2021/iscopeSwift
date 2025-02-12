@@ -5,7 +5,7 @@ import OpenAI from 'openai'
 import { WebSocketServer, WebSocket } from 'ws'
 import http from 'http'
 import AWS from 'aws-sdk'
-import fs from 'fs'
+import * as fs from 'fs'
 import { exec } from 'child_process'
 import fetch from 'node-fetch'
 import FormData from 'form-data'
@@ -68,6 +68,49 @@ app.use(express.json())
 
 // Add routes
 app.use('/api/export', exportRouter)
+
+// Generate presigned URL endpoint
+app.post('/generate-presigned-url', async (req, res) => {
+    try {
+        const { fileName, contentType, isProfile } = req.body
+        console.log('Received request for presigned URL:', { fileName, contentType, isProfile })
+
+        if (!fileName || !contentType) {
+            return res.status(400).json({ error: 'Missing required fields' })
+        }
+
+        // Determine the S3 key based on the type
+        const key = isProfile ? `profiles/${fileName}` : `videos/${fileName}`
+
+        // Generate upload URL (expires in 5 minutes)
+        const uploadURL = s3.getSignedUrl('putObject', {
+            Bucket: process.env.AWS_S3_BUCKET,
+            Key: key,
+            Expires: 300, // 5 minutes
+            ContentType: contentType
+        })
+
+        // Generate download URL (expires in 7 days)
+        const downloadURL = s3.getSignedUrl('getObject', {
+            Bucket: process.env.AWS_S3_BUCKET,
+            Key: key,
+            Expires: 7 * 24 * 60 * 60 // 7 days
+        })
+
+        console.log('Generated URLs:', { uploadURL, downloadURL, key })
+
+        res.json({
+            uploadURL,
+            downloadURL,
+            key,
+            imageKey: key,
+            videoKey: key
+        })
+    } catch (error) {
+        console.error('Error generating presigned URL:', error)
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' })
+    }
+})
 
 // Create HTTP server with Express
 const server = http.createServer(app)
@@ -374,22 +417,37 @@ function convertTimestamps(obj: any): any {
         return obj
     }
 
+    // Handle Date objects
     if (obj instanceof Date) {
         return obj.getTime()
     }
 
-    if (obj.constructor.name === 'Timestamp') {
-        return obj.toMillis()
+    // Handle Firestore Timestamps
+    if (typeof obj === 'object' && '_seconds' in obj && '_nanoseconds' in obj) {
+        const seconds = (obj as { _seconds: number })._seconds
+        const nanoseconds = (obj as { _nanoseconds: number })._nanoseconds
+        return seconds * 1000 + Math.floor(nanoseconds / 1000000)
     }
 
+    // Handle arrays
     if (Array.isArray(obj)) {
-        return obj.map(convertTimestamps)
+        return obj.map(item => convertTimestamps(item))
     }
 
+    // Handle objects
     const converted: any = {}
-    for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-            converted[key] = convertTimestamps(obj[key])
+    for (const [key, value] of Object.entries(obj)) {
+        if (value && typeof value === 'object') {
+            if ('_seconds' in value && '_nanoseconds' in value) {
+                // Convert Firestore timestamp to milliseconds
+                const seconds = (value as { _seconds: number })._seconds
+                const nanoseconds = (value as { _nanoseconds: number })._nanoseconds
+                converted[key] = seconds * 1000 + Math.floor(nanoseconds / 1000000)
+            } else {
+                converted[key] = convertTimestamps(value)
+            }
+        } else {
+            converted[key] = value
         }
     }
     return converted
@@ -413,6 +471,44 @@ app.get('/video/:videoId', async (req, res) => {
         console.error('Error fetching video:', error)
         res.status(500).json({
             error: 'Failed to fetch video',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        })
+    }
+})
+
+// Add start-transcription endpoint
+app.post('/start-transcription', async (req, res) => {
+    try {
+        const { videoUrl, videoId } = req.body
+        console.log('Starting transcription for video:', { videoId, videoUrl })
+
+        if (!videoUrl || !videoId) {
+            return res.status(400).json({ error: 'Missing required fields' })
+        }
+
+        // Generate a job ID for tracking
+        const jobId = `job_${Date.now()}_${videoId}`
+
+        // Start transcription process in the background
+        processTranscription(videoUrl, videoId)
+            .then(result => {
+                console.log('Transcription completed:', result)
+            })
+            .catch(error => {
+                console.error('Background transcription failed:', error)
+            })
+
+        // Return response matching Swift app's expected format
+        res.json({
+            jobId: jobId,
+            status: 'processing',
+            transcriptUrl: videoUrl,
+            text: '',  // Will be populated when transcription completes
+        })
+    } catch (error) {
+        console.error('Error starting transcription:', error)
+        res.status(500).json({
+            error: 'Failed to start transcription',
             details: error instanceof Error ? error.message : 'Unknown error'
         })
     }

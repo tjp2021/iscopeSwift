@@ -226,7 +226,7 @@ struct SettingsProfileView: View {
             }
             
             print("[SettingsProfileView] 📡 Getting pre-signed URL...")
-            let serverUrl = "http://localhost:3000/generate-presigned-url"
+            let serverUrl = "http://localhost:3001/generate-presigned-url"
             var request = URLRequest(url: URL(string: serverUrl)!)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
