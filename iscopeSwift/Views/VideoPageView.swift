@@ -439,6 +439,7 @@ struct VideoPageView: View {
     @State private var showingUploadSheet = false
     @State private var showingProfile = false
     @State private var showingCaptionSettings = false
+    @State private var showingTranscript = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -492,6 +493,22 @@ struct VideoPageView: View {
                                     Text("\(video.commentCount)")
                                         .font(.caption)
                                         .foregroundColor(.white)
+                                }
+                            }
+                            
+                            // Transcript Button
+                            if let segments = video.transcriptionSegments, !segments.isEmpty {
+                                Button(action: {
+                                    showingTranscript = true
+                                }) {
+                                    VStack {
+                                        Image(systemName: "doc.text")
+                                            .font(.system(size: 30))
+                                            .foregroundColor(.white)
+                                        Text("Transcript")
+                                            .font(.caption)
+                                            .foregroundColor(.white)
+                                    }
                                 }
                             }
                             
@@ -618,6 +635,11 @@ struct VideoPageView: View {
         }
         .sheet(isPresented: $showingCaptionSettings) {
             CaptionSettingsView(showCaptions: $showCaptions, viewModel: captionSettings)
+        }
+        .sheet(isPresented: $showingTranscript) {
+            if let segments = video.transcriptionSegments {
+                TranscriptView(segments: segments)
+            }
         }
     }
     

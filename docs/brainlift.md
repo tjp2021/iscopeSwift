@@ -1312,3 +1312,88 @@ Anti-Patterns to Avoid:
 - Cluttered UI placement
 - Parameter order confusion
 - Build performance neglect 
+
+# Caption Position Implementation Analysis
+
+## Problem/Feature Overview
+
+Initial Requirements:
+- Add vertical position control for captions
+- Provide visual preview
+- Maintain consistent positioning
+- Handle edge cases
+
+Key Challenges:
+1. Preview Bounds:
+   - Text going off-screen at extremes
+   - Inconsistent preview vs actual
+   - Safe zone requirements
+   - Position persistence
+
+2. Position Calculation:
+   - Consistent math between preview/actual
+   - Safe zones at top/bottom
+   - Proper spacing
+   - Real-time updates
+
+Success Criteria:
+- Smooth position adjustment
+- Consistent preview
+- Text stays within bounds
+- Persists between sessions
+
+## Solution Implementation
+
+### Step 1: State Management
+```swift
+@Published var verticalPosition: Double = 0.8 {  // Default 80% from top
+    didSet {
+        savePosition()
+    }
+}
+```
+- Added position state
+- Implemented persistence
+- Default position near bottom
+
+### Step 2: Preview Implementation
+```swift
+let safeZone = geometry.size.height * 0.15
+let availableHeight = geometry.size.height - (safeZone * 2)
+let adjustedPosition = (availableHeight * viewModel.verticalPosition) + safeZone
+```
+- Added safe zones (15%)
+- Calculated available space
+- Adjusted position within bounds
+
+### Step 3: Actual Implementation
+- Applied same calculations to video player
+- Maintained consistent spacing
+- Real-time position updates
+- Clean transition animations
+
+## Key Lessons
+
+Technical Insights:
+1. Safe zones crucial for usability
+2. Consistent math between preview/actual important
+3. GeometryReader essential for proper layout
+4. State management patterns reusable
+
+Process Improvements:
+1. Test edge cases early
+2. Visual feedback important
+3. Incremental implementation works well
+4. Reuse existing patterns
+
+Best Practices:
+1. Keep calculations simple
+2. Use consistent safe zones
+3. Preview matches actual
+4. Persist user preferences
+
+Anti-Patterns Avoided:
+1. Complex position calculations
+2. Inconsistent preview/actual
+3. Missing edge case handling
+4. Overcomplicated state management 
