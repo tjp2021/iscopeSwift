@@ -32,7 +32,10 @@
 
 ### 1. Enhanced Caption Styling 🚧
 - [ ] Basic Style Options
-  - [ ] Font size control
+  - [x] Font size control
+    - [x] Font size slider
+    - [x] Real-time preview
+    - [x] Persistent settings
   - [ ] Basic color options
   - [ ] Simple positioning
   - [ ] Opacity control
@@ -76,8 +79,8 @@
 
 ### Current Focus
 - Enhanced Caption Styling Implementation
-  - Font size controls
-  - Color customization
+  - ✅ Font size controls (Completed)
+  - Color customization (Next)
   - Position adjustment
   - Opacity settings
 
@@ -105,7 +108,13 @@
    - State management optimization
    - Proper cleanup routines
 
-3. Known Issues to Address
+3. Caption Styling Progress ✅
+   - Added CC button with settings menu
+   - Implemented font size controls with live preview
+   - Added persistent settings storage
+   - Real-time caption size updates
+
+4. Known Issues to Address
    - Font size customization needed
    - Caption positioning improvements
    - Style customization options 

@@ -583,7 +583,16 @@ struct VideoPageView: View {
             }
         }
         .onChange(of: viewModel.isMuted) { _, isMuted in
+            print("[DEBUG] Mute state changed to: \(isMuted)")
             player?.isMuted = isMuted
+        }
+        .onChange(of: isVisible) { _, visible in
+            if visible {
+                print("[DEBUG] Video became visible, current mute state: \(viewModel.isMuted)")
+                setupVideo()
+            } else {
+                cleanup()
+            }
         }
         .onChange(of: video.transcriptionSegments) { _, newSegments in
             captionManager.updateSegments(newSegments, translations: video.translations)
@@ -637,6 +646,7 @@ struct VideoPageView: View {
             print("[DEBUG] Creating player for URL: \(url)")
             player = playerManager.setupPlayer(for: url, captionManager: captionManager)
             player?.isMuted = viewModel.isMuted
+            print("[DEBUG] Setting initial mute state: \(viewModel.isMuted)")
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 print("[DEBUG] Starting playback for URL: \(url)")
@@ -677,7 +687,6 @@ struct CustomVideoPlayer: UIViewControllerRepresentable {
         controller.allowsPictureInPicturePlayback = true
         
         player.actionAtItemEnd = .none
-        player.isMuted = false
         
         return controller
     }
