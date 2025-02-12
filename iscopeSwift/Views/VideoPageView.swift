@@ -440,6 +440,7 @@ struct VideoPageView: View {
     @State private var showingProfile = false
     @State private var showingCaptionSettings = false
     @State private var showingTranscript = false
+    @State private var showingExportOptions = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -506,6 +507,22 @@ struct VideoPageView: View {
                                             .font(.system(size: 30))
                                             .foregroundColor(.white)
                                         Text("Transcript")
+                                            .font(.caption)
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            }
+                            
+                            // Export Button
+                            if let segments = video.transcriptionSegments, !segments.isEmpty {
+                                Button(action: {
+                                    handleExport()
+                                }) {
+                                    VStack {
+                                        Image(systemName: "square.and.arrow.up")
+                                            .font(.system(size: 30))
+                                            .foregroundColor(.white)
+                                        Text("Export")
                                             .font(.caption)
                                             .foregroundColor(.white)
                                     }
@@ -641,6 +658,12 @@ struct VideoPageView: View {
                 TranscriptView(segments: segments, player: player)
             }
         }
+        .sheet(isPresented: $showingExportOptions) {
+            ExportOptionsView(
+                video: video,
+                currentLanguage: captionManager.currentLanguage
+            )
+        }
     }
     
     private func setupVideo() {
@@ -701,6 +724,10 @@ struct VideoPageView: View {
             isRetrying = false
             setupVideo()
         }
+    }
+    
+    private func handleExport() {
+        showingExportOptions = true
     }
 }
 

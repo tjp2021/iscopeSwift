@@ -11,6 +11,9 @@ import fetch from 'node-fetch';
 import FormData from 'form-data';
 import { initializeApp, applicationDefault, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import express from 'express';
+import cors from 'cors';
+import exportRouter from './src/routes/export';
 
 console.log('Starting server initialization...');
 
@@ -613,4 +616,13 @@ server.listen(port, host, () => {
     console.log(`\n=== Server running at http://${host}:${port} ===`);
     console.log(`WebSocket server running at ws://${host}:${port}`);
     console.log('Ready to handle requests...\n');
-}); 
+});
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Add export routes
+app.use('/api/export', exportRouter);
+
+// ... rest of the server code ... 

@@ -1,0 +1,115 @@
+import Queue from 'bull'
+import { processVideo, generateSubtitleFile, downloadVideo } from '../services/videoProcessor'
+import { db } from '../firebase'
+import { Storage } from '@google-cloud/storage'
+
+const storage = new Storage()
+const bucket = storage.bucket(process.env.FIREBASE_STORAGE_BUCKET!)
+
+interface ExportJobData {
+  jobId: string
+  videoId: string
+  language: string
+}
+
+// Create export queue
+const exportQueue = new Queue<ExportJobData>('video-export', {
+  redis: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379')
+  }
+})
+
+// Process jobs
+exportQueue.process(async (job) => {
+  const { jobId, videoId } = job.data
+  const jobRef = db.collection('exportJobs').doc(jobId)
+  
+  try {
+    // Update status to processing
+    await jobRef.update({
+      status: 'processing',
+      updatedAt: new Date()
+    })
+    
+    // Get video data
+    const videoDoc = await db.collection('videos').doc(videoId).get()
+    if (!videoDoc.exists) {
+      throw new Error('Video not found')
+    }
+    const video = videoDoc.data()!
+    
+    if (!video.transcriptionSegments || video.transcriptionSegments.length === 0) {
+      throw new Error('No transcription segments found')
+    }
+    
+    // Process the video and get the output path
+    const outputPath = await processVideoJob(video, job)
+    
+    // Upload to storage
+    const outputFile = bucket.file(`exports/${jobId}/video.mp4`)
+    await bucket.upload(outputPath, {
+      destination: outputFile,
+      metadata: {
+        contentType: 'video/mp4'
+      }
+    })
+    
+    // Generate signed URL (valid for 7 days)
+    const [url] = await outputFile.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 7 * 24 * 60 * 60 * 1000
+    })
+    
+    // Update job as completed
+    await jobRef.update({
+      status: 'completed',
+      downloadUrl: url,
+      updatedAt: new Date()
+    })
+    
+    return { status: 'success', downloadUrl: url }
+    
+  } catch (error) {
+    console.error('Export job failed:', error)
+    
+    // Update job as failed
+    await jobRef.update({
+      status: 'failed',
+      error: error.message,
+      updatedAt: new Date()
+    })
+    
+    throw error
+  }
+})
+
+// Add job to queue
+export async function queueExportJob(jobId: string, videoId: string, language: string) {
+  return exportQueue.add({
+    jobId,
+    videoId,
+    language
+  }, {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 1000
+    }
+  })
+}
+
+// Monitor queue events
+exportQueue.on('completed', (job) => {
+  console.log(`Job ${job.id} completed for video export ${job.data.jobId}`)
+})
+
+exportQueue.on('failed', (job, error) => {
+  console.error(`Job ${job.id} failed for video export ${job.data.jobId}:`, error)
+})
+
+exportQueue.on('progress', (job, progress) => {
+  console.log(`Job ${job.id} is ${progress}% done`)
+})
+
+export default exportQueue 
