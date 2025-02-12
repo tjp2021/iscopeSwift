@@ -56,6 +56,43 @@ struct CaptionSettingsView: View {
                         }
                         .padding(.vertical, 8)
                     }
+                    
+                    Section(header: Text("Caption Position")) {
+                        VStack {
+                            Slider(value: $viewModel.verticalPosition, in: 0...1) {
+                                Text("Vertical Position")
+                            }
+                            
+                            // Position preview container
+                            GeometryReader { geometry in
+                                ZStack(alignment: .center) {
+                                    Color.black.opacity(0.1)
+                                    
+                                    // Preview text positioned according to slider
+                                    VStack {
+                                        // Add top safe zone
+                                        let safeZone = geometry.size.height * 0.15 // 15% padding top and bottom
+                                        let availableHeight = geometry.size.height - (safeZone * 2)
+                                        let adjustedPosition = (availableHeight * viewModel.verticalPosition) + safeZone
+                                        
+                                        Spacer()
+                                            .frame(height: adjustedPosition)
+                                        
+                                        Text("Preview Text")
+                                            .font(.system(size: viewModel.fontSize, weight: .semibold))
+                                            .foregroundColor(viewModel.captionColor)
+                                            .padding(8)
+                                            .background(Color.black.opacity(0.75))
+                                            .cornerRadius(8)
+                                        
+                                        Spacer()
+                                    }
+                                }
+                            }
+                            .frame(height: 200)
+                            .cornerRadius(8)
+                        }
+                    }
                 }
             }
             .navigationTitle("Caption Settings")

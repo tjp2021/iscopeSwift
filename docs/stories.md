@@ -36,8 +36,11 @@
     - [x] Font size slider
     - [x] Real-time preview
     - [x] Persistent settings
-  - [ ] Basic color options
-  - [ ] Simple positioning
+  - [x] Basic color options
+    - [x] Predefined color selection
+    - [x] Color preview
+    - [x] Persistent color settings
+  - [ ] Position adjustment
   - [ ] Opacity control
 
 ### 2. Transcript Management
@@ -80,12 +83,14 @@
 ### Current Focus
 - Enhanced Caption Styling Implementation
   - ✅ Font size controls (Completed)
-  - Color customization (Next)
-  - Position adjustment
+  - ✅ Color customization (Completed)
+  - Position adjustment (Next)
   - Opacity settings
 
 ### Next Up
 1. Enhanced Caption Styling (Nice to Have)
+   - Position adjustment implementation
+   - Opacity control implementation
 2. Basic Transcript Management (Nice to Have)
 
 ### Notes
@@ -113,8 +118,10 @@
    - Implemented font size controls with live preview
    - Added persistent settings storage
    - Real-time caption size updates
+   - Added color selection with predefined colors
+   - Implemented color persistence
+   - Real-time color updates
 
 4. Known Issues to Address
-   - Font size customization needed
    - Caption positioning improvements
-   - Style customization options 
+   - Opacity customization needed 

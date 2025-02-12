@@ -223,86 +223,93 @@ private struct CaptionsOverlay: View {
     @Binding var video: Video
     
     var body: some View {
-        VStack {
-            Spacer()
-            
-            // Caption text
-            if !captionManager.currentText.isEmpty {
-                Text(captionManager.currentText)
-                    .font(.system(size: captionSettings.fontSize, weight: .semibold))
-                    .foregroundColor(captionSettings.captionColor)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.black.opacity(0.75))
-                            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                    )
-                    .padding(.horizontal)
-                    .padding(.bottom, 20)
-                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
-            }
-            
-            // Bottom controls row with language selector
-            HStack {
-                // Translation loading indicator
-                if translationViewModel.isTranslating {
-                    HStack {
-                        ProgressView()
-                            .tint(.white)
-                        Text("Translating...")
-                            .foregroundColor(.white)
-                    }
-                    .padding(8)
-                    .background(Color.black.opacity(0.75))
-                    .cornerRadius(8)
+        GeometryReader { geometry in
+            VStack {
+                // Add top safe zone
+                let safeZone = geometry.size.height * 0.15 // 15% padding top and bottom
+                let availableHeight = geometry.size.height - (safeZone * 2)
+                let adjustedPosition = (availableHeight * captionSettings.verticalPosition) + safeZone
+                
+                Spacer()
+                    .frame(height: adjustedPosition)
+                
+                // Caption text
+                if !captionManager.currentText.isEmpty {
+                    Text(captionManager.currentText)
+                        .font(.system(size: captionSettings.fontSize, weight: .semibold))
+                        .foregroundColor(captionSettings.captionColor)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.black.opacity(0.75))
+                                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                        )
+                        .padding(.horizontal)
                 }
                 
                 Spacer()
                 
-                // Language selector
-                Menu {
-                    ForEach(translationViewModel.availableLanguages, id: \.self) { language in
-                        Button(action: {
-                            Task {
-                                if language != "en" {
-                                    do {
-                                        try await translationViewModel.translate(video: video, to: language)
-                                        // Fetch the updated video data from Firestore to get the new translations
-                                        if let updatedVideo = try await fetchUpdatedVideo(video.id) {
-                                            video = updatedVideo
-                                            captionManager.updateLanguage(language, translations: updatedVideo.translations)
+                // Bottom controls row with language selector
+                HStack {
+                    // Translation loading indicator
+                    if translationViewModel.isTranslating {
+                        HStack {
+                            ProgressView()
+                                .tint(.white)
+                            Text("Translating...")
+                                .foregroundColor(.white)
+                        }
+                        .padding(8)
+                        .background(Color.black.opacity(0.75))
+                        .cornerRadius(8)
+                    }
+                    
+                    Spacer()
+                    
+                    // Language selector
+                    Menu {
+                        ForEach(translationViewModel.availableLanguages, id: \.self) { language in
+                            Button(action: {
+                                Task {
+                                    if language != "en" {
+                                        do {
+                                            try await translationViewModel.translate(video: video, to: language)
+                                            // Fetch the updated video data from Firestore to get the new translations
+                                            if let updatedVideo = try await fetchUpdatedVideo(video.id) {
+                                                video = updatedVideo
+                                                captionManager.updateLanguage(language, translations: updatedVideo.translations)
+                                            }
+                                        } catch {
+                                            print("[DEBUG] Translation error: \(error.localizedDescription)")
                                         }
-                                    } catch {
-                                        print("[DEBUG] Translation error: \(error.localizedDescription)")
+                                    } else {
+                                        captionManager.updateLanguage(language, translations: video.translations)
                                     }
-                                } else {
-                                    captionManager.updateLanguage(language, translations: video.translations)
                                 }
-                            }
-                        }) {
-                            HStack {
-                                Text(languageName(for: language))
-                                if captionManager.currentLanguage == language {
-                                    Image(systemName: "checkmark")
+                            }) {
+                                HStack {
+                                    Text(languageName(for: language))
+                                    if captionManager.currentLanguage == language {
+                                        Image(systemName: "checkmark")
+                                    }
                                 }
                             }
                         }
+                    } label: {
+                        HStack {
+                            Image(systemName: "globe")
+                            Text(languageName(for: captionManager.currentLanguage))
+                        }
+                        .padding(8)
+                        .background(Color.black.opacity(0.75))
+                        .cornerRadius(8)
                     }
-                } label: {
-                    HStack {
-                        Image(systemName: "globe")
-                        Text(languageName(for: captionManager.currentLanguage))
-                    }
-                    .padding(8)
-                    .background(Color.black.opacity(0.75))
-                    .cornerRadius(8)
+                    .disabled(translationViewModel.isTranslating)
                 }
-                .disabled(translationViewModel.isTranslating)
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 100)
         }
     }
     
