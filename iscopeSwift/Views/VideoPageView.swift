@@ -230,7 +230,7 @@ private struct CaptionsOverlay: View {
             if !captionManager.currentText.isEmpty {
                 Text(captionManager.currentText)
                     .font(.system(size: captionSettings.fontSize, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(captionSettings.captionColor)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
