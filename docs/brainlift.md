@@ -1063,3 +1063,70 @@ Anti-Patterns to Avoid:
 - Ignoring URL expiration times
 - Missing error handling
 - Unclear URL lifecycle management 
+
+# Caption_Functionality_Analysis
+
+## Problem/Feature Overview
+- **Initial Requirements**: Captions should work immediately after video upload
+- **Key Challenges**: 
+  - Captions weren't appearing right after upload despite transcription being complete
+  - State synchronization between upload and video feed
+- **Success Criteria**: Captions toggle working seamlessly after video upload
+
+## Solution Attempts
+
+### Attempt #1
+- **Approach**: Added debug logging to caption toggle
+- **Implementation**: Added logging for caption state, transcription status, and segment presence
+- **Outcome**: Helped identify that transcription segments existed but weren't being properly initialized
+- **Learnings**: State was correct but not being propagated properly
+
+### Attempt #2
+- **Approach**: Enhanced VideoFeedViewModel's transcription listener setup
+- **Implementation**: Added extensive debug logging and improved error handling
+- **Outcome**: Better visibility into transcription state changes
+- **Learnings**: Listeners were working but feed wasn't refreshing after upload
+
+### Attempt #3
+- **Approach**: Integrated feed refresh into upload flow
+- **Implementation**: Added `feedViewModel.refreshVideos()` after successful upload
+- **Outcome**: Successfully fixed the caption functionality
+- **Learnings**: State needed to be explicitly refreshed after upload
+
+## Final Solution
+- **Implementation Details**:
+  1. Added feed refresh after upload
+  2. Enhanced transcription listener setup
+  3. Added automatic upload sheet dismissal
+  4. Improved debug logging
+
+- **Why It Works**:
+  - Feed refresh ensures new video is properly loaded with initial state
+  - Enhanced listeners catch transcription updates
+  - Automatic dismissal provides better UX
+
+- **Key Components**:
+  - VideoFeedViewModel's setupTranscriptionListeners
+  - UploadVideoView's handleVideoSelection
+  - Robust error handling and debug logging
+
+## Key Lessons
+- **Technical Insights**:
+  - State management requires explicit refresh after mutations
+  - Real-time listeners need proper setup and cleanup
+  - Debug logging is crucial for async state tracking
+
+- **Process Improvements**:
+  - Added comprehensive debug logging
+  - Enhanced error handling
+  - Better state synchronization
+
+- **Best Practices**:
+  - Refresh feed after mutations
+  - Clean up listeners properly
+  - Use debug logging strategically
+
+- **Anti-Patterns to Avoid**:
+  - Assuming state updates propagate automatically
+  - Missing error handling in async operations
+  - Insufficient logging in complex async flows 

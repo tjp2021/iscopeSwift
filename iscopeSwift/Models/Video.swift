@@ -14,6 +14,7 @@ struct Video: Identifiable, Codable, Equatable {
     var transcriptionStatus: String?  // "pending", "completed", "failed"
     var transcriptionText: String?    // The actual transcription when completed
     var transcriptionSegments: [TranscriptionSegment]? // Array of timed segments
+    var translations: [String: TranslationData]? // Language code -> Translation data
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -29,6 +30,7 @@ struct Video: Identifiable, Codable, Equatable {
         case transcriptionStatus
         case transcriptionText
         case transcriptionSegments
+        case translations
     }
     
     init(from decoder: Decoder) throws {
@@ -46,6 +48,7 @@ struct Video: Identifiable, Codable, Equatable {
         transcriptionStatus = try container.decodeIfPresent(String.self, forKey: .transcriptionStatus)
         transcriptionText = try container.decodeIfPresent(String.self, forKey: .transcriptionText)
         transcriptionSegments = try container.decodeIfPresent([TranscriptionSegment].self, forKey: .transcriptionSegments)
+        translations = try container.decodeIfPresent([String: TranslationData].self, forKey: .translations)
     }
     
     init(id: String,
@@ -60,7 +63,8 @@ struct Video: Identifiable, Codable, Equatable {
          commentCount: Int = 0,
          transcriptionStatus: String? = nil,
          transcriptionText: String? = nil,
-         transcriptionSegments: [TranscriptionSegment]? = nil) {
+         transcriptionSegments: [TranscriptionSegment]? = nil,
+         translations: [String: TranslationData]? = nil) {
         self.id = id
         self.userId = userId
         self.title = title
@@ -74,6 +78,7 @@ struct Video: Identifiable, Codable, Equatable {
         self.transcriptionStatus = transcriptionStatus
         self.transcriptionText = transcriptionText
         self.transcriptionSegments = transcriptionSegments
+        self.translations = translations
     }
     
     static func == (lhs: Video, rhs: Video) -> Bool {
@@ -89,7 +94,8 @@ struct Video: Identifiable, Codable, Equatable {
         lhs.commentCount == rhs.commentCount &&
         lhs.transcriptionStatus == rhs.transcriptionStatus &&
         lhs.transcriptionText == rhs.transcriptionText &&
-        lhs.transcriptionSegments == rhs.transcriptionSegments
+        lhs.transcriptionSegments == rhs.transcriptionSegments &&
+        lhs.translations == rhs.translations
     }
 }
 
@@ -108,8 +114,23 @@ extension Video {
             commentCount: 10,
             transcriptionStatus: "completed",
             transcriptionText: "This is a mock transcription text for testing purposes.",
-            transcriptionSegments: nil
+            transcriptionSegments: nil,
+            translations: nil
         )
+    }
+}
+
+// Translation data structure
+struct TranslationData: Codable, Equatable {
+    var text: String
+    var segments: [TranscriptionSegment]?
+    var status: TranslationStatus
+    var lastUpdated: Date
+    
+    enum TranslationStatus: String, Codable {
+        case pending
+        case completed
+        case failed
     }
 }
 

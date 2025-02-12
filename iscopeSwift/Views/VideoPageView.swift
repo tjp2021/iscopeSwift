@@ -1,19 +1,56 @@
 import SwiftUI
 import AVKit
 import Combine
+import FirebaseFirestore
 
 // Add CaptionManager before VideoPlayerManager
 class CaptionManager: ObservableObject {
     @Published var currentText: String = ""
-    private var segments: [TranscriptionSegment] = []
+    @Published var currentLanguage: String = "en"
+    private var originalSegments: [TranscriptionSegment] = []
+    private var translatedSegments: [TranscriptionSegment] = []
     
-    func updateSegments(_ segments: [TranscriptionSegment]?) {
-        self.segments = segments ?? []
+    func updateSegments(_ segments: [TranscriptionSegment]?, translations: [String: TranslationData]? = nil) {
+        print("[DEBUG] Updating segments")
+        print("[DEBUG] Original segments count: \(segments?.count ?? 0)")
+        self.originalSegments = segments ?? []
+        if let currentTranslation = translations?[currentLanguage],
+           currentTranslation.status == .completed,
+           let translatedSegs = currentTranslation.segments {
+            print("[DEBUG] Found translation for language: \(currentLanguage)")
+            print("[DEBUG] Translated segments count: \(translatedSegs.count)")
+            self.translatedSegments = translatedSegs
+        } else {
+            print("[DEBUG] No translation found for language: \(currentLanguage)")
+            self.translatedSegments = []
+        }
+    }
+    
+    func updateLanguage(_ language: String, translations: [String: TranslationData]?) {
+        print("[DEBUG] Updating language to: \(language)")
+        print("[DEBUG] Available translations: \(translations?.keys.joined(separator: ", ") ?? "none")")
+        currentLanguage = language
+        if language == "en" {
+            print("[DEBUG] Setting English (original) segments")
+            translatedSegments = []
+        } else if let translation = translations?[language],
+                  translation.status == .completed,
+                  let segments = translation.segments {
+            print("[DEBUG] Found \(segments.count) translated segments for \(language)")
+            translatedSegments = segments
+        } else {
+            print("[DEBUG] No translation segments found for \(language)")
+            translatedSegments = []
+        }
     }
     
     func updateForTime(_ time: Double) {
+        let segments = translatedSegments.isEmpty ? originalSegments : translatedSegments
         if let segment = segments.first(where: { time >= $0.startTime && time <= $0.endTime }) {
             if currentText != segment.text {
+                print("[DEBUG] Updating caption text for time \(time)")
+                print("[DEBUG] Using \(translatedSegments.isEmpty ? "original" : "translated") segments")
+                print("[DEBUG] New text: \(segment.text)")
                 currentText = segment.text
             }
         } else {
@@ -181,24 +218,125 @@ private struct DebugOverlay: View {
 // Captions overlay component
 private struct CaptionsOverlay: View {
     @ObservedObject var captionManager: CaptionManager
+    @StateObject private var translationViewModel = TranslationViewModel()
+    @Binding var video: Video
     
     var body: some View {
-        if !captionManager.currentText.isEmpty {
-            Text(captionManager.currentText)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.black.opacity(0.75))
-                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                )
-                .padding(.horizontal)
-                .padding(.bottom, 100)
-                .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+        VStack {
+            Spacer()
+            
+            // Caption text
+            if !captionManager.currentText.isEmpty {
+                Text(captionManager.currentText)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.black.opacity(0.75))
+                            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                    )
+                    .padding(.horizontal)
+                    .padding(.bottom, 20)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+            }
+            
+            // Bottom controls row with language selector
+            HStack {
+                // Translation loading indicator
+                if translationViewModel.isTranslating {
+                    HStack {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Translating...")
+                            .foregroundColor(.white)
+                    }
+                    .padding(8)
+                    .background(Color.black.opacity(0.75))
+                    .cornerRadius(8)
+                }
+                
+                Spacer()
+                
+                // Language selector
+                Menu {
+                    ForEach(translationViewModel.availableLanguages, id: \.self) { language in
+                        Button(action: {
+                            Task {
+                                if language != "en" {
+                                    do {
+                                        try await translationViewModel.translate(video: video, to: language)
+                                        // Fetch the updated video data from Firestore to get the new translations
+                                        if let updatedVideo = try await fetchUpdatedVideo(video.id) {
+                                            video = updatedVideo
+                                            captionManager.updateLanguage(language, translations: updatedVideo.translations)
+                                        }
+                                    } catch {
+                                        print("[DEBUG] Translation error: \(error.localizedDescription)")
+                                    }
+                                } else {
+                                    captionManager.updateLanguage(language, translations: video.translations)
+                                }
+                            }
+                        }) {
+                            HStack {
+                                Text(languageName(for: language))
+                                if captionManager.currentLanguage == language {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "globe")
+                        Text(languageName(for: captionManager.currentLanguage))
+                    }
+                    .padding(8)
+                    .background(Color.black.opacity(0.75))
+                    .cornerRadius(8)
+                }
+                .disabled(translationViewModel.isTranslating)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 100)
         }
+    }
+    
+    private func languageName(for code: String) -> String {
+        switch code {
+        case "en": return "English"
+        case "es": return "Spanish"
+        case "fr": return "French"
+        case "de": return "German"
+        case "it": return "Italian"
+        case "pt": return "Portuguese"
+        case "ru": return "Russian"
+        case "ja": return "Japanese"
+        case "ko": return "Korean"
+        case "zh": return "Chinese"
+        default: return code.uppercased()
+        }
+    }
+    
+    // Add this helper function to CaptionsOverlay
+    private func fetchUpdatedVideo(_ videoId: String) async throws -> Video? {
+        let db = Firestore.firestore()
+        let docSnapshot = try await db.collection("videos").document(videoId).getDocument()
+        if var data = docSnapshot.data() {
+            // Convert Firestore Timestamp to milliseconds since 1970
+            if let createdAtTimestamp = data["createdAt"] as? Timestamp {
+                data["createdAt"] = createdAtTimestamp.dateValue().timeIntervalSince1970 * 1000
+            }
+            
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .millisecondsSince1970
+            let jsonData = try JSONSerialization.data(withJSONObject: data)
+            return try decoder.decode(Video.self, from: jsonData)
+        }
+        return nil
     }
 }
 
@@ -396,7 +534,7 @@ struct VideoPageView: View {
                 if showCaptions && video.transcriptionSegments?.isEmpty == false {
                     VStack {
                         Spacer()
-                        CaptionsOverlay(captionManager: captionManager)
+                        CaptionsOverlay(captionManager: captionManager, video: $video)
                             .padding(.bottom, 100)
                     }
                 }
@@ -415,7 +553,7 @@ struct VideoPageView: View {
         .background(Color.black)
         .onAppear {
             isVisible = true
-            captionManager.updateSegments(video.transcriptionSegments)
+            captionManager.updateSegments(video.transcriptionSegments, translations: video.translations)
             setupVideo()
         }
         .onDisappear {
@@ -434,7 +572,10 @@ struct VideoPageView: View {
             player?.isMuted = isMuted
         }
         .onChange(of: video.transcriptionSegments) { _, newSegments in
-            captionManager.updateSegments(newSegments)
+            captionManager.updateSegments(newSegments, translations: video.translations)
+        }
+        .onChange(of: video.translations) { _, newTranslations in
+            captionManager.updateSegments(video.transcriptionSegments, translations: newTranslations)
         }
         .sheet(isPresented: $showingComments) {
             CommentsView(video: $video)

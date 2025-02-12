@@ -95,6 +95,19 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // Health check endpoint
+    if (req.method === 'GET' && pathname === '/health') {
+        console.log('Handling health check request');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+            status: 'healthy',
+            openai: true,
+            firebase: true,
+            s3: true
+        }));
+        return;
+    }
+
     // Handle OPTIONS request for CORS preflight
     if (req.method === 'OPTIONS') {
         console.log('Handling CORS preflight request');
@@ -251,6 +264,55 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Invalid request' }));
         }
+        return;
+    }
+
+    // Translation test endpoint
+    if (req.method === 'POST' && pathname === '/translate') {
+        console.log('Handling translation request');
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+
+        req.on('end', async () => {
+            try {
+                const { text, targetLanguage } = JSON.parse(body);
+                console.log(`Translating to ${targetLanguage}:`, text);
+
+                const completion = await openai.chat.completions.create({
+                    model: "gpt-4",
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are a professional translator. Translate the following text to ${targetLanguage}. Maintain the original formatting and tone.`
+                        },
+                        {
+                            role: "user",
+                            content: text
+                        }
+                    ],
+                    stream: false // Changed to false for initial testing
+                });
+
+                const translation = completion.choices[0].message.content;
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    translation,
+                    sourceLanguage: 'en',
+                    targetLanguage,
+                    status: 'success'
+                }));
+            } catch (error) {
+                console.error('Translation error:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    error: 'Translation failed',
+                    details: error.message 
+                }));
+            }
+        });
         return;
     }
 
