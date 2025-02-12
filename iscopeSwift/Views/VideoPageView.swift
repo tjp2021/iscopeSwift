@@ -219,7 +219,7 @@ private struct DebugOverlay: View {
 private struct CaptionsOverlay: View {
     @ObservedObject var captionManager: CaptionManager
     @StateObject private var translationViewModel = TranslationViewModel()
-    @StateObject private var captionSettings = CaptionSettingsViewModel()
+    @ObservedObject var captionSettings: CaptionSettingsViewModel
     @Binding var video: Video
     
     var body: some View {
@@ -420,6 +420,7 @@ struct VideoPageView: View {
     @StateObject private var playerManager = VideoPlayerManager()
     @StateObject private var captionManager = CaptionManager()
     @StateObject private var engagementViewModel = VideoEngagementViewModel()
+    @StateObject private var captionSettings = CaptionSettingsViewModel()
     @State private var player: AVPlayer?
     @State private var showError = false
     @State private var errorMessage: String?
@@ -553,7 +554,11 @@ struct VideoPageView: View {
                 if showCaptions && video.transcriptionSegments?.isEmpty == false {
                     VStack {
                         Spacer()
-                        CaptionsOverlay(captionManager: captionManager, video: $video)
+                        CaptionsOverlay(
+                            captionManager: captionManager,
+                            captionSettings: captionSettings,
+                            video: $video
+                        )
                             .padding(.bottom, 100)
                     }
                 }
@@ -596,7 +601,7 @@ struct VideoPageView: View {
             MyVideosView()
         }
         .sheet(isPresented: $showingCaptionSettings) {
-            CaptionSettingsView(showCaptions: $showCaptions)
+            CaptionSettingsView(showCaptions: $showCaptions, viewModel: captionSettings)
         }
     }
     

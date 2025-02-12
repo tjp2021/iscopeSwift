@@ -3,7 +3,7 @@ import SwiftUI
 struct CaptionSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var showCaptions: Bool
-    @StateObject private var viewModel = CaptionSettingsViewModel()
+    @ObservedObject var viewModel: CaptionSettingsViewModel
     
     var body: some View {
         NavigationView {
@@ -19,12 +19,13 @@ struct CaptionSettingsView: View {
                                 Text("Font Size")
                             }
                             
-                            // Preview text
+                            // Preview text with the same styling as actual captions
                             Text("Preview Text")
-                                .font(.system(size: viewModel.fontSize))
+                                .font(.system(size: viewModel.fontSize, weight: .semibold))
                                 .padding()
                                 .frame(maxWidth: .infinity)
-                                .background(Color.black.opacity(0.1))
+                                .foregroundColor(.white)
+                                .background(Color.black.opacity(0.75))
                                 .cornerRadius(8)
                         }
                     }
