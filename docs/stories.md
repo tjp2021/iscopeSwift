@@ -30,8 +30,8 @@
 
 ## Nice to Have 🎁
 
-### 1. Enhanced Caption Styling 🚧
-- [ ] Basic Style Options
+### 1. Enhanced Caption Styling ✅
+- [x] Basic Style Options
   - [x] Font size control
     - [x] Font size slider
     - [x] Real-time preview
@@ -45,16 +45,32 @@
     - [x] Safe zone implementation
     - [x] Real-time preview
     - [x] Persistent position
-  - [ ] Opacity control
+  - [x] Opacity control
+    - [x] Background opacity setting
+    - [x] Real-time preview
+    - [x] Persistent opacity value
 
-### 2. Transcript Management
+### 2. Video Export with Captions ✅
+- [x] Basic Export Features
+  - [x] FFmpeg integration
+  - [x] Subtitle burning
+  - [x] Progress tracking
+  - [x] Download management
+- [x] Caption Styling in Export
+  - [x] Font size matching
+  - [x] Center alignment
+  - [x] Background opacity
+  - [x] Position mapping
+  - [x] Color conversion
+
+### 3. Transcript Management
 - [ ] Basic Features
   - [ ] View full transcript
   - [ ] Basic text search
   - [ ] Simple editing
   - [ ] Export as text
 
-### 3. Enhanced Translation Features
+### 4. Enhanced Translation Features
 - [x] Additional Features
   - [x] Language auto-detection
   - [x] Translation quality check
@@ -85,22 +101,21 @@
 - [x] Multi-Language Support
 
 ### Current Focus
-- Enhanced Caption Styling Implementation
-  - ✅ Font size controls (Completed)
-  - ✅ Color customization (Completed)
-  - ✅ Position adjustment (Completed)
-  - Opacity settings (Next)
+- Video Export System Enhancement
+  - ✅ Basic export functionality (Completed)
+  - ✅ Caption styling in exports (Completed)
+  - ✅ Progress tracking (Completed)
+  - Performance optimization (Next)
 
 ### Next Up
-1. Enhanced Caption Styling (Nice to Have)
-   - Opacity control implementation
-2. Basic Transcript Management (Nice to Have)
+1. Transcript Management (Nice to Have)
+2. Enhanced Translation Features (Nice to Have)
 
 ### Notes
 - Priority: Moving to Nice to Have features after completing MVP
 - Timeline: Q1 2024
 - Dependencies: iOS 15+, Swift 5.5+
-- Current Status: All MVP requirements completed. Translation system working with multiple languages and proper state management. Moving to UI/UX improvements.
+- Current Status: All MVP requirements completed. Enhanced caption styling and export system implemented. Moving to transcript management features.
 
 ### Recent Achievements
 1. Multi-Language Support ✅
@@ -127,6 +142,22 @@
    - Added vertical position control with safe zones
    - Implemented position persistence
    - Real-time position preview and updates
+   - Added background opacity control
+   - Implemented opacity persistence
 
-4. Known Issues to Address
-   - Opacity customization needed 
+4. Video Export System ✅
+   - Implemented FFmpeg integration for video processing
+   - Added subtitle burning with proper styling
+   - Matched app caption appearance in exports
+   - Implemented center-aligned text format
+   - Added proper opacity controls (88% opacity)
+   - Corrected font size scaling (0.8x)
+   - Added proper position mapping
+   - Implemented progress tracking
+   - Added download management
+   - Enhanced error handling
+
+5. Known Issues to Address
+   - Performance optimization for large video exports
+   - Enhanced error recovery for failed exports
+   - Additional export format options 

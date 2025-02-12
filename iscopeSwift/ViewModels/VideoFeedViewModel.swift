@@ -64,39 +64,6 @@ class VideoFeedViewModel: ObservableObject {
         isMuted.toggle()
     }
     
-    func toggleLike(for video: Video) async {
-        guard let userId = Auth.auth().currentUser?.uid else { return }
-        
-        do {
-            let likeRef = db.collection("videos").document(video.id).collection("likes").document(userId)
-            let videoRef = db.collection("videos").document(video.id)
-            
-            let likeDoc = try await likeRef.getDocument()
-            let isCurrentlyLiked = likeDoc.exists
-            
-            if isCurrentlyLiked {
-                try await likeRef.delete()
-                let updateData: [String: Any] = ["likeCount": FieldValue.increment(Int64(-1))]
-                try await videoRef.updateData(updateData)
-                
-                if let index = videos.firstIndex(where: { $0.id == video.id }) {
-                    videos[index].likeCount -= 1
-                }
-            } else {
-                let likeData: [String: Any] = ["createdAt": FieldValue.serverTimestamp()]
-                try await likeRef.setData(likeData)
-                let updateData: [String: Any] = ["likeCount": FieldValue.increment(Int64(1))]
-                try await videoRef.updateData(updateData)
-                
-                if let index = videos.firstIndex(where: { $0.id == video.id }) {
-                    videos[index].likeCount += 1
-                }
-            }
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-    
     func refreshVideos() async {
         guard !isRefreshing else { return }
         
@@ -113,7 +80,7 @@ class VideoFeedViewModel: ObservableObject {
                 .getDocuments()
             
             let videos = snapshot.documents.compactMap { document -> Video? in
-                let data = document.data()
+                var data = document.data()
                 let url = data["url"] as? String ?? data["videoUrl"] as? String ?? ""
                 print("[DEBUG] Video URL from Firestore: \(url) for video ID: \(document.documentID)")
                 
@@ -122,10 +89,26 @@ class VideoFeedViewModel: ObservableObject {
                     return nil
                 }
                 
+                // Convert Firestore Timestamp to milliseconds since 1970
+                if let createdAtTimestamp = data["createdAt"] as? Timestamp {
+                    data["createdAt"] = createdAtTimestamp.dateValue().timeIntervalSince1970 * 1000
+                }
+                
+                // Convert translations timestamps if they exist
+                if var translations = data["translations"] as? [String: [String: Any]] {
+                    for (language, var translationData) in translations {
+                        if let lastUpdatedTimestamp = translationData["lastUpdated"] as? Timestamp {
+                            translationData["lastUpdated"] = lastUpdatedTimestamp.dateValue().timeIntervalSince1970 * 1000
+                            translations[language] = translationData
+                        }
+                    }
+                    data["translations"] = translations
+                }
+                
                 // Parse transcription segments if they exist
                 var parsedSegments: [TranscriptionSegment]? = nil
                 if let segments = try? document.get("transcriptionSegments") as? [[String: Any]] {
-                    parsedSegments = segments.compactMap { segmentData in
+                    parsedSegments = segments.compactMap { segmentData -> TranscriptionSegment? in
                         guard let text = segmentData["text"] as? String,
                               let startTime = segmentData["startTime"] as? Double,
                               let endTime = segmentData["endTime"] as? Double else {
@@ -140,21 +123,19 @@ class VideoFeedViewModel: ObservableObject {
                     }
                 }
                 
-                return Video(
-                    id: document.documentID,
-                    userId: data["userId"] as? String ?? "",
-                    title: data["title"] as? String ?? "",
-                    description: data["description"] as? String,
-                    url: url,
-                    thumbnailUrl: data["thumbnailUrl"] as? String,
-                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
-                    viewCount: data["viewCount"] as? Int ?? 0,
-                    likeCount: data["likeCount"] as? Int ?? 0,
-                    commentCount: data["commentCount"] as? Int ?? 0,
-                    transcriptionStatus: data["transcriptionStatus"] as? String,
-                    transcriptionText: data["transcriptionText"] as? String,
-                    transcriptionSegments: parsedSegments
-                )
+                // Convert to JSON and decode using our Codable implementation
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .millisecondsSince1970
+                
+                do {
+                    let jsonData = try JSONSerialization.data(withJSONObject: data)
+                    var video = try decoder.decode(Video.self, from: jsonData)
+                    video.transcriptionSegments = parsedSegments
+                    return video
+                } catch {
+                    print("[ERROR] Failed to decode video data: \(error)")
+                    return nil
+                }
             }
             
             print("[DEBUG] Fetched \(videos.count) valid videos with URLs")
@@ -298,11 +279,10 @@ class VideoFeedViewModel: ObservableObject {
                     thumbnailUrl: data["thumbnailUrl"] as? String,
                     createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                     viewCount: data["viewCount"] as? Int ?? 0,
-                    likeCount: data["likeCount"] as? Int ?? 0,
-                    commentCount: data["commentCount"] as? Int ?? 0,
                     transcriptionStatus: data["transcriptionStatus"] as? String,
                     transcriptionText: data["transcriptionText"] as? String,
-                    transcriptionSegments: parsedSegments
+                    transcriptionSegments: parsedSegments,
+                    translations: nil
                 )
             }
             
@@ -321,8 +301,6 @@ class VideoFeedViewModel: ObservableObject {
             "videoUrl": video.url,
             "userId": video.userId,
             "createdAt": video.createdAt,
-            "likeCount": video.likeCount,
-            "commentCount": video.commentCount,
             "viewCount": video.viewCount,
             "thumbnailUrl": video.thumbnailUrl as Any,
             "transcriptionStatus": video.transcriptionStatus as Any,
@@ -344,8 +322,6 @@ class VideoFeedViewModel: ObservableObject {
                 thumbnailUrl: nil,
                 createdAt: Date(),
                 viewCount: 0,
-                likeCount: 0,
-                commentCount: 0,
                 transcriptionStatus: nil,
                 transcriptionText: nil,
                 transcriptionSegments: nil
@@ -359,8 +335,6 @@ class VideoFeedViewModel: ObservableObject {
                 thumbnailUrl: nil,
                 createdAt: Date().addingTimeInterval(-86400),
                 viewCount: 0,
-                likeCount: 0,
-                commentCount: 0,
                 transcriptionStatus: nil,
                 transcriptionText: nil,
                 transcriptionSegments: nil

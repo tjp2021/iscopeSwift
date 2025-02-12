@@ -271,12 +271,11 @@ private struct CaptionsOverlay: View {
                     // Language selector
                     Menu {
                         ForEach(translationViewModel.availableLanguages, id: \.self) { language in
-                            Button(action: {
+                            Button {
                                 Task {
                                     if language != "en" {
                                         do {
                                             try await translationViewModel.translate(video: video, to: language)
-                                            // Fetch the updated video data from Firestore to get the new translations
                                             if let updatedVideo = try await fetchUpdatedVideo(video.id) {
                                                 video = updatedVideo
                                                 captionManager.updateLanguage(language, translations: updatedVideo.translations)
@@ -288,7 +287,7 @@ private struct CaptionsOverlay: View {
                                         captionManager.updateLanguage(language, translations: video.translations)
                                     }
                                 }
-                            }) {
+                            } label: {
                                 HStack {
                                     Text(languageName(for: language))
                                     if captionManager.currentLanguage == language {
@@ -337,6 +336,17 @@ private struct CaptionsOverlay: View {
             // Convert Firestore Timestamp to milliseconds since 1970
             if let createdAtTimestamp = data["createdAt"] as? Timestamp {
                 data["createdAt"] = createdAtTimestamp.dateValue().timeIntervalSince1970 * 1000
+            }
+            
+            // Convert timestamps in translations if they exist
+            if var translations = data["translations"] as? [String: [String: Any]] {
+                for (language, var translationData) in translations {
+                    if let lastUpdatedTimestamp = translationData["lastUpdated"] as? Timestamp {
+                        translationData["lastUpdated"] = lastUpdatedTimestamp.dateValue().timeIntervalSince1970 * 1000
+                        translations[language] = translationData
+                    }
+                }
+                data["translations"] = translations
             }
             
             let decoder = JSONDecoder()
@@ -390,51 +400,17 @@ private struct ErrorOverlay: View {
     }
 }
 
-// Control overlay component
-private struct VideoControlsOverlay: View {
-    let video: Video
-    let showingComments: Bool
-    let showCaptions: Bool
-    let onCommentsToggle: () -> Void
-    let onCaptionsToggle: () -> Void
-    
-    var body: some View {
-        HStack(spacing: 20) {
-            Button(action: onCommentsToggle) {
-                VStack {
-                    Image(systemName: "bubble.right")
-                        .font(.system(size: 24))
-                    Text("\(video.commentCount)")
-                        .font(.caption)
-                }
-            }
-            
-            Button(action: onCaptionsToggle) {
-                Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
-                    .font(.system(size: 24))
-            }
-        }
-        .foregroundColor(.white)
-        .padding()
-        .background(Color.black.opacity(0.5))
-        .cornerRadius(12)
-    }
-}
-
 struct VideoPageView: View {
     @Binding var video: Video
     @ObservedObject var viewModel: VideoFeedViewModel
     @StateObject private var playerManager = VideoPlayerManager()
     @StateObject private var captionManager = CaptionManager()
-    @StateObject private var engagementViewModel = VideoEngagementViewModel()
     @StateObject private var captionSettings = CaptionSettingsViewModel()
     @State private var player: AVPlayer?
     @State private var showError = false
     @State private var errorMessage: String?
     @State private var isRetrying = false
     @State private var isVisible = false
-    @State private var showingComments = false
-    @State private var showingTranscription = false
     @State private var showCaptions = true
     @State private var showingUploadSheet = false
     @State private var showingProfile = false
@@ -459,43 +435,13 @@ struct VideoPageView: View {
                     )
                 }
                 
-                // Engagement Side Menu
+                // Side Menu
                 VStack {
                     Spacer()
                     HStack {
                         Spacer()
                         VStack(spacing: 20) {
                             Spacer() // Add top spacer for vertical centering
-                            
-                            // Like Button
-                            Button(action: {
-                                Task {
-                                    await engagementViewModel.handleLikeAction(for: video)
-                                }
-                            }) {
-                                VStack {
-                                    Image(systemName: engagementViewModel.isVideoLiked(video) ? "heart.fill" : "heart")
-                                        .font(.system(size: 30))
-                                        .foregroundColor(engagementViewModel.isVideoLiked(video) ? .red : .white)
-                                    Text("\(video.likeCount)")
-                                        .font(.caption)
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            
-                            // Comments Button
-                            Button(action: {
-                                showingComments.toggle()
-                            }) {
-                                VStack {
-                                    Image(systemName: "bubble.right")
-                                        .font(.system(size: 30))
-                                        .foregroundColor(.white)
-                                    Text("\(video.commentCount)")
-                                        .font(.caption)
-                                        .foregroundColor(.white)
-                                }
-                            }
                             
                             // Transcript Button
                             if let segments = video.transcriptionSegments, !segments.isEmpty {
@@ -537,8 +483,6 @@ struct VideoPageView: View {
                                     .font(.system(size: 30))
                                     .foregroundColor(.white)
                             }
-                            
-                            // Move Captions Button to bottom controls
                             
                             // Add Video Button
                             Button(action: {
@@ -640,9 +584,6 @@ struct VideoPageView: View {
         }
         .onChange(of: video.translations) { _, newTranslations in
             captionManager.updateSegments(video.transcriptionSegments, translations: newTranslations)
-        }
-        .sheet(isPresented: $showingComments) {
-            CommentsView(video: $video)
         }
         .sheet(isPresented: $showingUploadSheet) {
             UploadVideoView()

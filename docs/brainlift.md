@@ -1397,3 +1397,176 @@ Anti-Patterns Avoided:
 2. Inconsistent preview/actual
 3. Missing edge case handling
 4. Overcomplicated state management 
+
+# Caption_Export_Analysis
+
+## Problem/Feature Overview
+Initial Requirements:
+- Match in-app caption appearance in exported videos
+- Center-aligned text format
+- Proper opacity for better visibility
+- Correct font size and positioning
+
+Key Challenges:
+- FFmpeg subtitle filter parameter tuning
+- ASS/SSA format color and opacity handling
+- Maintaining consistent styling between app and export
+
+Success Criteria:
+- Captions are center-aligned
+- Text is clearly visible with proper background opacity
+- Font size matches app display
+- Position respects app settings
+
+## Solution Attempts
+### Attempt 1
+- Approach: Initial font size scaling (1.2x) and top alignment
+- Implementation: Used Alignment=8 with direct position mapping
+- Outcome: Font size was too large, position didn't match app
+- Learnings: Need to reduce font scaling
+
+### Attempt 2
+- Approach: Reduced font scaling (0.8x) and center alignment
+- Implementation: Changed to Alignment=2 with inverted position calculation
+- Outcome: Better font size, improved positioning
+- Learnings: Center alignment works better for readability
+
+### Attempt 3
+- Approach: Increased background opacity for better visibility
+- Implementation: Changed BackColour from &HC0000000 to &HE0000000
+- Outcome: Stronger caption appearance with 88% opacity
+- Learnings: Higher opacity improves readability
+
+## Final Solution
+Implementation Details:
+- Font size scaled at 0.8x
+- Center alignment (Alignment=2)
+- 88% background opacity (&HE0000000)
+- Inverted position calculation for bottom-up rendering
+
+Why It Works:
+- Matches app's visual style while ensuring readability
+- Maintains consistent positioning across different video content
+- Provides proper contrast with background
+
+Key Components:
+- FFmpeg subtitle filter with precise ASS/SSA styling
+- Position calculation that respects app settings
+- Opacity settings that balance visibility and aesthetics
+
+## Key Lessons
+Technical Insights:
+- ASS/SSA format requires specific color format (&HAABBGGRR)
+- FFmpeg subtitle positioning is bottom-up by default
+- Font scaling needs to account for video resolution
+
+Process Improvements:
+- Test exports with various background colors
+- Validate caption settings across different video types
+- Document FFmpeg subtitle parameters for future reference
+
+Best Practices:
+- Use center alignment for consistent readability
+- Maintain higher opacity for better visibility
+- Scale font size proportionally to video resolution
+
+Anti-Patterns to Avoid:
+- Direct font size mapping without scaling
+- Top-alignment for general caption display
+- Low opacity values that reduce readability 
+
+## ExportManager_Analysis
+
+### Problem/Feature Overview
+- Initial Requirements:
+  - Create and manage video export jobs with captions
+  - Support multiple languages for captions
+  - Handle caption styling and positioning
+  - Track export progress and status
+  - Provide real-time updates
+
+- Key Challenges:
+  1. Type safety with heterogeneous data structures
+  2. Proper timestamp handling between Swift and Firestore
+  3. Real-time progress tracking
+  4. Consistent error handling
+  5. Caption settings synchronization
+
+- Success Criteria:
+  1. Type-safe data handling
+  2. Reliable export job creation and tracking
+  3. Proper error propagation
+  4. Real-time status updates
+  5. Consistent caption formatting
+
+### Solution Attempts
+
+### Attempt #1: Initial Implementation
+- Approach: Direct dictionary creation for Firestore
+- Implementation: Used inferred types for dictionary literals
+- Outcome: Type inference errors with heterogeneous collections
+- Learnings: Swift requires explicit type annotations for mixed-type collections
+
+### Attempt #2: Type Annotation Fix
+- Approach: Added explicit type annotations
+- Implementation: Used `[String: Any]` type annotations
+- Outcome: Improved type safety but still had nested type issues
+- Learnings: Need to handle nested dictionary types explicitly
+
+### Attempt #3: Comprehensive Type Safety
+- Approach: Full type annotation hierarchy
+- Implementation:
+  - Added explicit type annotations at all levels
+  - Used type casting for values
+  - Separated dictionary creation from data operations
+- Outcome: Resolved type inference issues
+- Learnings: Explicit is better than implicit for complex data structures
+
+### Final Solution
+- Implementation Details:
+  1. Explicit type annotations for all dictionaries
+  2. Clear separation of concerns:
+     - Job creation
+     - Data transformation
+     - Server communication
+  3. Proper error handling and logging
+  4. Real-time updates via AsyncStream
+
+- Why It Works:
+  1. Type safety is maintained throughout
+  2. Clear data flow and transformation
+  3. Proper error propagation
+  4. Efficient real-time updates
+
+- Key Components:
+  1. ExportJob struct for type-safe job representation
+  2. CaptionSettings struct for styling
+  3. AsyncStream for real-time updates
+  4. Explicit type annotations for Firestore compatibility
+
+### Key Lessons
+
+- Technical Insights:
+  1. Always use explicit type annotations for heterogeneous collections
+  2. Handle timestamps consistently between systems
+  3. Use proper type casting for mixed-type data
+  4. Implement clear error handling paths
+
+- Process Improvements:
+  1. Start with clear type definitions
+  2. Plan data transformations upfront
+  3. Consider all error cases
+  4. Test real-time functionality thoroughly
+
+- Best Practices:
+  1. Use explicit type annotations
+  2. Separate concerns clearly
+  3. Implement comprehensive logging
+  4. Handle all error cases
+  5. Use proper type casting
+
+- Anti-Patterns to Avoid:
+  1. Relying on type inference for complex structures
+  2. Mixing data transformation with business logic
+  3. Inconsistent error handling
+  4. Implicit type casting 

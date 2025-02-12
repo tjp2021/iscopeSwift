@@ -141,8 +141,6 @@ struct CreatorVideoDetailView: View {
                         // Stats Row
                         HStack(spacing: 24) {
                             StatView(count: video.viewCount, icon: "eye.fill", label: "Views")
-                            StatView(count: video.likeCount, icon: "heart.fill", label: "Likes")
-                            StatView(count: video.commentCount, icon: "bubble.right.fill", label: "Comments")
                         }
                         
                         // Post Date

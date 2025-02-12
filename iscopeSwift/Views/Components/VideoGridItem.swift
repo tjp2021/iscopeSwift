@@ -168,14 +168,13 @@ extension View {
         title: "Test Video",
         description: "Test Description",
         url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-        thumbnailUrl: "https://example.com/thumbnail.jpg",
+        thumbnailUrl: nil,
         createdAt: Date(),
-        viewCount: 123,
-        likeCount: 45,
-        commentCount: 10,
-        transcriptionStatus: nil,
-        transcriptionText: nil,
-        transcriptionSegments: nil
+        viewCount: 100,
+        transcriptionStatus: "completed",
+        transcriptionText: "Sample transcription",
+        transcriptionSegments: nil,
+        translations: nil
     ))
     .frame(width: 150, height: 150)
 } 

@@ -30,24 +30,30 @@ class MyVideosViewModel: ObservableObject {
             
             print("[MyVideosViewModel] Found \(snapshot.documents.count) videos")
             
-            self.videos = snapshot.documents.compactMap { document in
-                let data = document.data()
-                return Video(
-                    id: document.documentID,
-                    userId: data["userId"] as? String ?? "",
-                    title: data["title"] as? String ?? "",
-                    description: data["description"] as? String,
-                    url: data["url"] as? String ?? "",
-                    thumbnailUrl: data["thumbnailUrl"] as? String,
-                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
-                    viewCount: data["viewCount"] as? Int ?? 0,
-                    likeCount: data["likeCount"] as? Int ?? 0,
-                    commentCount: data["commentCount"] as? Int ?? 0,
-                    transcriptionStatus: data["transcriptionStatus"] as? String,
-                    transcriptionText: data["transcriptionText"] as? String,
-                    transcriptionSegments: nil
-                )
+            let videos = snapshot.documents.compactMap { document -> Video? in
+                var data = document.data()
+                let url = data["url"] as? String ?? data["videoUrl"] as? String ?? ""
+                
+                // Convert Firestore Timestamp to milliseconds since 1970
+                if let createdAtTimestamp = data["createdAt"] as? Timestamp {
+                    data["createdAt"] = createdAtTimestamp.dateValue().timeIntervalSince1970 * 1000
+                }
+                
+                // Convert to JSON and decode using our Codable implementation
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .millisecondsSince1970
+                
+                do {
+                    let jsonData = try JSONSerialization.data(withJSONObject: data)
+                    return try decoder.decode(Video.self, from: jsonData)
+                } catch {
+                    print("[ERROR] Failed to decode video data: \(error)")
+                    return nil
+                }
             }
+            
+            self.videos = videos
+            self.error = nil
         } catch {
             print("[MyVideosViewModel] Error fetching videos: \(error.localizedDescription)")
             self.error = error.localizedDescription

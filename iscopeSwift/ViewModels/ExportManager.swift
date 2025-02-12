@@ -20,13 +20,13 @@ struct ExportJob: Codable {
     var error: String?
     var downloadUrl: String?
     var progress: Int?
-    let captionSettings: CaptionSettings
+    var captionSettings: CaptionSettings
 }
 
 struct CaptionSettings: Codable {
-    let fontSize: Double
-    let captionColor: String
-    let verticalPosition: Double
+    var fontSize: Double
+    var captionColor: String
+    var verticalPosition: Double
 }
 
 @MainActor
@@ -43,6 +43,18 @@ class ExportManager: ObservableObject {
         guard let userId = Auth.auth().currentUser?.uid else {
             print("[ERROR] ExportManager - No authenticated user")
             throw NSError(domain: "ExportManager", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
+        }
+        
+        // Get the translated segments if they exist
+        let segments = if language == "en" {
+            video.transcriptionSegments
+        } else {
+            video.translations?[language]?.segments
+        }
+        
+        guard let segments = segments else {
+            print("[ERROR] ExportManager - No segments found for language: \(language)")
+            throw NSError(domain: "ExportManager", code: 400, userInfo: [NSLocalizedDescriptionKey: "No captions available for selected language"])
         }
         
         let jobId = UUID().uuidString
@@ -77,8 +89,18 @@ class ExportManager: ObservableObject {
         )
         
         print("[DEBUG] ExportManager - Creating Firestore document for job: \(jobId)")
+        
+        // Convert segments to Firestore-compatible format
+        let segmentsData: [[String: Any]] = segments.map { segment -> [String: Any] in
+            return [
+                "text": segment.text as String,
+                "startTime": segment.startTime as Double,
+                "endTime": segment.endTime as Double
+            ]
+        }
+        
         // Create the job in Firestore
-        try await db.collection("exportJobs").document(jobId).setData([
+        let documentData: [String: Any] = [
             "id": job.id,
             "userId": job.userId,
             "videoId": job.videoId,
@@ -86,12 +108,15 @@ class ExportManager: ObservableObject {
             "status": job.status.rawValue,
             "createdAt": job.createdAt,
             "updatedAt": job.updatedAt,
+            "segments": segmentsData,
             "captionSettings": [
                 "fontSize": captionSettings.fontSize,
                 "captionColor": captionSettings.captionColor,
                 "verticalPosition": captionSettings.verticalPosition
-            ]
-        ])
+            ] as [String: Any]
+        ]
+        
+        try await db.collection("exportJobs").document(jobId).setData(documentData)
         
         // Trigger the export process on the server
         guard let url = URL(string: "\(serverUrl)/export/process/\(jobId)") else {
@@ -104,9 +129,10 @@ class ExportManager: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let body = [
-            "videoId": video.id,
-            "language": language
+        let body: [String: Any] = [
+            "videoId": video.id as String,
+            "language": language as String,
+            "segments": segmentsData as [[String: Any]]
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
@@ -124,9 +150,17 @@ class ExportManager: ObservableObject {
     func getExportJob(_ jobId: String) async throws -> ExportJob? {
         print("[DEBUG] ExportManager - Fetching job: \(jobId)")
         let snapshot = try await db.collection("exportJobs").document(jobId).getDocument()
-        guard let data = snapshot.data() else {
+        guard var data = snapshot.data() else {
             print("[DEBUG] ExportManager - No data found for job: \(jobId)")
             return nil
+        }
+        
+        // Convert timestamps to milliseconds since 1970
+        if let createdAtTimestamp = data["createdAt"] as? Timestamp {
+            data["createdAt"] = createdAtTimestamp.dateValue().timeIntervalSince1970 * 1000
+        }
+        if let updatedAtTimestamp = data["updatedAt"] as? Timestamp {
+            data["updatedAt"] = updatedAtTimestamp.dateValue().timeIntervalSince1970 * 1000
         }
         
         // Safely extract caption settings
@@ -135,25 +169,23 @@ class ExportManager: ObservableObject {
         let captionColor = captionSettingsData["captionColor"] as? String ?? ""
         let verticalPosition = captionSettingsData["verticalPosition"] as? Double ?? 0.8
         
-        let job = ExportJob(
-            id: data["id"] as? String ?? "",
-            userId: data["userId"] as? String ?? "",
-            videoId: data["videoId"] as? String ?? "",
-            language: data["language"] as? String ?? "",
-            status: ExportStatus(rawValue: data["status"] as? String ?? "") ?? .failed,
-            createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
-            updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date(),
-            error: data["error"] as? String,
-            downloadUrl: data["downloadUrl"] as? String,
-            progress: data["progress"] as? Int,
-            captionSettings: CaptionSettings(
+        // Convert to JSON and decode using our Codable implementation
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: data)
+            var job = try decoder.decode(ExportJob.self, from: jsonData)
+            job.captionSettings = CaptionSettings(
                 fontSize: fontSize,
                 captionColor: captionColor,
                 verticalPosition: verticalPosition
             )
-        )
-        print("[DEBUG] ExportManager - Job fetched: status=\(job.status.rawValue), progress=\(job.progress ?? -1)")
-        return job
+            return job
+        } catch {
+            print("[ERROR] ExportManager - Failed to decode job data: \(error)")
+            return nil
+        }
     }
     
     func observeExportJob(_ jobId: String) -> AsyncStream<ExportJob> {
@@ -166,7 +198,7 @@ class ExportManager: ObservableObject {
                         return
                     }
                     
-                    guard let data = snapshot?.data() else {
+                    guard var data = snapshot?.data() else {
                         print("[ERROR] ExportManager - No data in snapshot for job: \(jobId)")
                         return
                     }
@@ -174,32 +206,41 @@ class ExportManager: ObservableObject {
                     print("[DEBUG] ExportManager - Received Firestore update for job: \(jobId)")
                     print("[DEBUG] ExportManager - Raw data: \(data)")
                     
+                    // Handle NaN progress value
+                    if let progress = data["progress"] as? Double, progress.isNaN {
+                        data["progress"] = nil
+                    }
+                    
+                    // Convert timestamps to milliseconds since 1970
+                    if let createdAtTimestamp = data["createdAt"] as? Timestamp {
+                        data["createdAt"] = createdAtTimestamp.dateValue().timeIntervalSince1970 * 1000
+                    }
+                    if let updatedAtTimestamp = data["updatedAt"] as? Timestamp {
+                        data["updatedAt"] = updatedAtTimestamp.dateValue().timeIntervalSince1970 * 1000
+                    }
+                    
                     // Safely extract caption settings
                     let captionSettingsData = data["captionSettings"] as? [String: Any] ?? [:]
                     let fontSize = captionSettingsData["fontSize"] as? Double ?? 20
                     let captionColor = captionSettingsData["captionColor"] as? String ?? ""
                     let verticalPosition = captionSettingsData["verticalPosition"] as? Double ?? 0.8
                     
-                    let job = ExportJob(
-                        id: data["id"] as? String ?? "",
-                        userId: data["userId"] as? String ?? "",
-                        videoId: data["videoId"] as? String ?? "",
-                        language: data["language"] as? String ?? "",
-                        status: ExportStatus(rawValue: data["status"] as? String ?? "") ?? .failed,
-                        createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
-                        updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date(),
-                        error: data["error"] as? String,
-                        downloadUrl: data["downloadUrl"] as? String,
-                        progress: data["progress"] as? Int,
-                        captionSettings: CaptionSettings(
+                    // Convert to JSON and decode using our Codable implementation
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .millisecondsSince1970
+                    
+                    do {
+                        let jsonData = try JSONSerialization.data(withJSONObject: data)
+                        var job = try decoder.decode(ExportJob.self, from: jsonData)
+                        job.captionSettings = CaptionSettings(
                             fontSize: fontSize,
                             captionColor: captionColor,
                             verticalPosition: verticalPosition
                         )
-                    )
-                    
-                    print("[DEBUG] ExportManager - Parsed job update: status=\(job.status.rawValue), progress=\(job.progress ?? -1)")
-                    continuation.yield(job)
+                        continuation.yield(job)
+                    } catch {
+                        print("[ERROR] ExportManager - Failed to decode job update: \(error)")
+                    }
                 }
             
             continuation.onTermination = { @Sendable _ in

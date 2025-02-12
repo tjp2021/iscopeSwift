@@ -160,11 +160,10 @@ class UploadViewModel: ObservableObject {
             thumbnailUrl: nil,
             createdAt: Date(),
             viewCount: 0,
-            likeCount: 0,
-            commentCount: 0,
             transcriptionStatus: "pending",
             transcriptionText: nil,
-            transcriptionSegments: nil
+            transcriptionSegments: nil,
+            translations: nil
         )
         
         try db.collection("videos").document(videoId).setData(from: newVideo)

@@ -16,68 +16,62 @@ class TranslationViewModel: ObservableObject {
     private let serverUrl = "http://localhost:3001"
     #endif
     
+    private struct TranslationResponse: Codable {
+        let translation: String
+        let status: String
+        let timestamp: TimeInterval
+    }
+    
     func translate(video: Video, to targetLanguage: String) async throws {
         guard let segments = video.transcriptionSegments else {
-            print("[DEBUG] Translation failed: No transcription segments available")
             throw NSError(domain: "Translation", code: -1, userInfo: [NSLocalizedDescriptionKey: "No transcription segments available"])
         }
-        
-        print("[DEBUG] Starting translation to \(targetLanguage)")
-        print("[DEBUG] Number of segments to translate: \(segments.count)")
         
         isTranslating = true
         defer { isTranslating = false }
         
         // Check if translation already exists and is completed
         if let existingTranslation = video.translations?[targetLanguage],
-           existingTranslation.status == .completed {
-            print("[DEBUG] Found existing completed translation for \(targetLanguage)")
+           existingTranslation.status == TranslationData.TranslationStatus.completed {
             currentLanguage = targetLanguage
             return
         }
         
-        print("[DEBUG] No existing translation found, starting new translation")
-        
         // Update status to pending
-        try await updateTranslationStatus(for: video.id, language: targetLanguage, status: .pending)
+        try await updateTranslationStatus(for: video.id, language: targetLanguage, status: TranslationData.TranslationStatus.pending)
         
         // Translate each segment
-        var translatedSegments: [TranscriptionSegment] = []
+        var translatedSegments: [[String: Any]] = []
         
-        for (index, segment) in segments.enumerated() {
-            print("[DEBUG] Translating segment \(index + 1)/\(segments.count)")
+        for segment in segments {
             let translatedText = try await translateText(segment.text, to: targetLanguage)
-            var translatedSegment = segment
-            translatedSegment.text = translatedText
+            let translatedSegment: [String: Any] = [
+                "text": translatedText,
+                "startTime": segment.startTime,
+                "endTime": segment.endTime
+            ]
             translatedSegments.append(translatedSegment)
         }
         
-        print("[DEBUG] All segments translated successfully")
-        
         // Create translation data
-        let translationData = TranslationData(
-            text: translatedSegments.map { $0.text }.joined(separator: " "),
-            segments: translatedSegments,
-            status: .completed,
-            lastUpdated: Date()
-        )
-        
-        print("[DEBUG] Updating Firestore with translated data")
+        let translationDict: [String: Any] = [
+            "text": translatedSegments.map { $0["text"] as? String ?? "" }.joined(separator: " "),
+            "segments": translatedSegments,
+            "status": TranslationData.TranslationStatus.completed.rawValue,
+            "lastUpdated": Date().timeIntervalSince1970 * 1000 // Convert to milliseconds since 1970
+        ]
         
         // Update Firestore
-        try await updateTranslation(
-            for: video.id,
-            language: targetLanguage,
-            data: translationData
-        )
+        try await db.collection("videos").document(video.id).updateData([
+            "translations.\(targetLanguage)": translationDict
+        ])
         
-        print("[DEBUG] Translation process completed successfully")
         currentLanguage = targetLanguage
     }
     
     private func translateText(_ text: String, to targetLanguage: String) async throws -> String {
         guard let url = URL(string: "\(serverUrl)/translate") else {
-            throw URLError(.badURL)
+            throw NSError(domain: "Translation", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
         }
         
         var request = URLRequest(url: url)
@@ -91,12 +85,7 @@ class TranslationViewModel: ObservableObject {
         
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        
-        struct TranslationResponse: Codable {
-            let translation: String
-            let status: String
+            throw NSError(domain: "Translation", code: -1, userInfo: [NSLocalizedDescriptionKey: "Server error"])
         }
         
         let result = try JSONDecoder().decode(TranslationResponse.self, from: data)
@@ -111,7 +100,7 @@ class TranslationViewModel: ObservableObject {
         let ref = db.collection("videos").document(videoId)
         try await ref.updateData([
             "translations.\(language).status": status.rawValue,
-            "translations.\(language).lastUpdated": Date()
+            "translations.\(language).lastUpdated": Date().timeIntervalSince1970 * 1000 // Convert to milliseconds since 1970
         ])
     }
     

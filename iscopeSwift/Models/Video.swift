@@ -9,8 +9,6 @@ struct Video: Identifiable, Codable, Equatable {
     var thumbnailUrl: String?
     var createdAt: Date
     var viewCount: Int
-    var likeCount: Int
-    var commentCount: Int
     var transcriptionStatus: String?  // "pending", "completed", "failed"
     var transcriptionText: String?    // The actual transcription when completed
     var transcriptionSegments: [TranscriptionSegment]? // Array of timed segments
@@ -25,8 +23,6 @@ struct Video: Identifiable, Codable, Equatable {
         case thumbnailUrl
         case createdAt
         case viewCount
-        case likeCount
-        case commentCount
         case transcriptionStatus
         case transcriptionText
         case transcriptionSegments
@@ -41,14 +37,35 @@ struct Video: Identifiable, Codable, Equatable {
         description = try container.decodeIfPresent(String.self, forKey: .description)
         url = try container.decode(String.self, forKey: .url)
         thumbnailUrl = try container.decodeIfPresent(String.self, forKey: .thumbnailUrl)
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        
+        // Handle createdAt as milliseconds since 1970
+        if let timestamp = try container.decodeIfPresent(Double.self, forKey: .createdAt) {
+            createdAt = Date(timeIntervalSince1970: timestamp / 1000.0)
+        } else {
+            createdAt = Date()
+        }
+        
         viewCount = try container.decodeIfPresent(Int.self, forKey: .viewCount) ?? 0
-        likeCount = try container.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
-        commentCount = try container.decodeIfPresent(Int.self, forKey: .commentCount) ?? 0
         transcriptionStatus = try container.decodeIfPresent(String.self, forKey: .transcriptionStatus)
         transcriptionText = try container.decodeIfPresent(String.self, forKey: .transcriptionText)
         transcriptionSegments = try container.decodeIfPresent([TranscriptionSegment].self, forKey: .transcriptionSegments)
         translations = try container.decodeIfPresent([String: TranslationData].self, forKey: .translations)
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(userId, forKey: .userId)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encode(url, forKey: .url)
+        try container.encodeIfPresent(thumbnailUrl, forKey: .thumbnailUrl)
+        try container.encode(createdAt.timeIntervalSince1970 * 1000, forKey: .createdAt)
+        try container.encode(viewCount, forKey: .viewCount)
+        try container.encodeIfPresent(transcriptionStatus, forKey: .transcriptionStatus)
+        try container.encodeIfPresent(transcriptionText, forKey: .transcriptionText)
+        try container.encodeIfPresent(transcriptionSegments, forKey: .transcriptionSegments)
+        try container.encodeIfPresent(translations, forKey: .translations)
     }
     
     init(id: String,
@@ -59,8 +76,6 @@ struct Video: Identifiable, Codable, Equatable {
          thumbnailUrl: String? = nil,
          createdAt: Date = Date(),
          viewCount: Int = 0,
-         likeCount: Int = 0,
-         commentCount: Int = 0,
          transcriptionStatus: String? = nil,
          transcriptionText: String? = nil,
          transcriptionSegments: [TranscriptionSegment]? = nil,
@@ -73,8 +88,6 @@ struct Video: Identifiable, Codable, Equatable {
         self.thumbnailUrl = thumbnailUrl
         self.createdAt = createdAt
         self.viewCount = viewCount
-        self.likeCount = likeCount
-        self.commentCount = commentCount
         self.transcriptionStatus = transcriptionStatus
         self.transcriptionText = transcriptionText
         self.transcriptionSegments = transcriptionSegments
@@ -90,8 +103,6 @@ struct Video: Identifiable, Codable, Equatable {
         lhs.thumbnailUrl == rhs.thumbnailUrl &&
         lhs.createdAt == rhs.createdAt &&
         lhs.viewCount == rhs.viewCount &&
-        lhs.likeCount == rhs.likeCount &&
-        lhs.commentCount == rhs.commentCount &&
         lhs.transcriptionStatus == rhs.transcriptionStatus &&
         lhs.transcriptionText == rhs.transcriptionText &&
         lhs.transcriptionSegments == rhs.transcriptionSegments &&
@@ -110,8 +121,6 @@ extension Video {
             thumbnailUrl: nil,
             createdAt: Date(),
             viewCount: 100,
-            likeCount: 50,
-            commentCount: 10,
             transcriptionStatus: "completed",
             transcriptionText: "This is a mock transcription text for testing purposes.",
             transcriptionSegments: nil,
@@ -131,6 +140,37 @@ struct TranslationData: Codable, Equatable {
         case pending
         case completed
         case failed
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case text
+        case segments
+        case status
+        case lastUpdated
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        text = try container.decode(String.self, forKey: .text)
+        segments = try container.decodeIfPresent([TranscriptionSegment].self, forKey: .segments)
+        status = try container.decode(TranslationStatus.self, forKey: .status)
+        
+        // Handle lastUpdated as milliseconds since 1970
+        if let timestamp = try container.decodeIfPresent(Double.self, forKey: .lastUpdated) {
+            lastUpdated = Date(timeIntervalSince1970: timestamp / 1000.0)
+        } else {
+            lastUpdated = Date()
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(text, forKey: .text)
+        try container.encodeIfPresent(segments, forKey: .segments)
+        try container.encode(status, forKey: .status)
+        
+        // Encode lastUpdated as milliseconds since 1970
+        try container.encode(lastUpdated.timeIntervalSince1970 * 1000, forKey: .lastUpdated)
     }
 }
 

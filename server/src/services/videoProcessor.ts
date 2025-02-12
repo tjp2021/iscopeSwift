@@ -29,6 +29,7 @@ interface ExportJob {
         captionColor: string
         verticalPosition: number
     }
+    segments: Array<{ text: string, startTime: number, endTime: number }>
 }
 
 // Configure AWS
@@ -164,6 +165,16 @@ export async function processVideoJob(job: Job<ExportJobData>): Promise<string> 
     throw new Error('Video data is empty')
   }
 
+  // Get the export job data to access the segments
+  const jobDoc = await db.collection('exportJobs').doc(job.data.jobId).get()
+  if (!jobDoc.exists) {
+    throw new Error('Export job not found')
+  }
+  const exportJob = jobDoc.data() as ExportJob
+  if (!exportJob?.segments) {
+    throw new Error('No segments found in export job')
+  }
+
   // Update status to processing
   await updateJobStatus(job.data.jobId, 'processing')
 
@@ -182,8 +193,8 @@ export async function processVideoJob(job: Job<ExportJobData>): Promise<string> 
     job?.progress(10)
     await updateJobProgress(job.data.jobId, 10)
     
-    // Generate subtitle file
-    await generateSubtitleFile(video.transcriptionSegments, subtitlePath)
+    // Generate subtitle file using segments from the export job
+    await generateSubtitleFile(exportJob.segments, subtitlePath)
     job?.progress(20)
     await updateJobProgress(job.data.jobId, 20)
     
