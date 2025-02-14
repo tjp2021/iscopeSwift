@@ -12,93 +12,182 @@ struct ExportOptionsView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                // Video Info
-                Text("Export Video with Subtitles")
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                
-                // Language Info
-                HStack {
-                    Image(systemName: "captions.bubble")
-                    Text("Language: \(languageName(for: currentLanguage))")
+            VStack(spacing: 0) {
+                // Header Section
+                VStack(spacing: 16) {
+                    Image(systemName: "square.and.arrow.up.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundStyle(.blue)
+                        .padding(.top, 20)
+                    
+                    Text("Export Video with Subtitles")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.center)
+                    
+                    // Language Info
+                    HStack(spacing: 8) {
+                        Image(systemName: "captions.bubble.fill")
+                            .foregroundStyle(.blue)
+                        Text(languageName(for: currentLanguage))
+                            .fontWeight(.medium)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(20)
                 }
-                .foregroundColor(.secondary)
+                .padding(.bottom, 32)
                 
-                // Status Info
+                // Status Section
                 if let job = exportJob {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 24) {
                         switch job.status {
                         case .pending:
-                            Text("Preparing export...")
-                            ProgressView()
+                            exportStatusView(
+                                icon: "clock.fill",
+                                title: "Preparing Export",
+                                message: "Setting up your video export...",
+                                showProgress: true,
+                                progress: nil
+                            )
+                            
                         case .processing:
-                            Text("Processing video...")
-                            if let progress = job.progress {
-                                VStack(spacing: 4) {
-                                    ProgressView(value: Double(progress) / 100.0)
-                                        .progressViewStyle(.linear)
-                                    Text("\(progress)%")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            } else {
-                                ProgressView()
-                            }
+                            exportStatusView(
+                                icon: "gear.circle.fill",
+                                title: "Processing Video",
+                                message: "Adding subtitles to your video...",
+                                showProgress: true,
+                                progress: job.progress.map { Double($0) / 100.0 }
+                            )
+                            
                         case .completed:
+                            exportStatusView(
+                                icon: "checkmark.circle.fill",
+                                title: "Export Complete!",
+                                message: "Your video is ready to download",
+                                showProgress: false
+                            )
+                            
                             if let url = job.downloadUrl {
-                                VStack(spacing: 12) {
-                                    Link("Download Video", destination: URL(string: url)!)
-                                        .buttonStyle(.borderedProminent)
-                                    Button("Done") {
-                                        dismiss()
+                                Link(destination: URL(string: url)!) {
+                                    HStack {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                        Text("Download Video")
                                     }
-                                    .foregroundColor(.blue)
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.blue)
+                                    .cornerRadius(12)
                                 }
+                                .padding(.horizontal, 20)
+                                .padding(.top, 8)
+                                
+                                Button("Done") {
+                                    dismiss()
+                                }
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                                .padding(.top, 8)
                             }
+                            
                         case .failed:
-                            Text(job.error ?? "Export failed")
-                                .foregroundColor(.red)
+                            exportStatusView(
+                                icon: "exclamationmark.circle.fill",
+                                title: "Export Failed",
+                                message: job.error ?? "An error occurred during export",
+                                showProgress: false,
+                                isError: true
+                            )
                         }
                     }
-                    .padding()
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
-                }
-                
-                // Export Button
-                if exportJob == nil {
+                    .padding(.horizontal)
+                } else {
+                    // Initial Export Button
                     Button(action: startExport) {
-                        if isExporting {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("Export Video")
+                        HStack(spacing: 12) {
+                            if isExporting {
+                                ProgressView()
+                                    .tint(.white)
+                            }
+                            Text(isExporting ? "Starting Export..." : "Export Video")
+                                .font(.headline)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(isExporting ? Color.gray : Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
                     }
-                    .buttonStyle(.borderedProminent)
                     .disabled(isExporting)
+                    .padding(.horizontal, 20)
                 }
                 
                 if let error = error {
                     Text(error)
+                        .font(.subheadline)
                         .foregroundColor(.red)
-                        .font(.caption)
                         .multilineTextAlignment(.center)
                         .padding()
                 }
                 
                 Spacer()
             }
-            .padding()
-            .navigationTitle("Export Video")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(leading: Button("Cancel") {
                 dismiss()
             }
             .disabled(isExporting))
         }
+    }
+    
+    private func exportStatusView(
+        icon: String,
+        title: String,
+        message: String,
+        showProgress: Bool,
+        progress: Double? = nil,
+        isError: Bool = false
+    ) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 44))
+                .foregroundStyle(isError ? .red : .blue)
+            
+            Text(title)
+                .font(.headline)
+                .foregroundColor(isError ? .red : .primary)
+            
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            
+            if showProgress {
+                if let progress = progress {
+                    VStack(spacing: 8) {
+                        ProgressView(value: progress)
+                            .progressViewStyle(.linear)
+                            .tint(.blue)
+                        Text("\(Int(progress * 100))%")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal)
+                } else {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .padding()
+                }
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(Color(uiColor: .systemBackground))
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 2)
     }
     
     private func startExport() {
