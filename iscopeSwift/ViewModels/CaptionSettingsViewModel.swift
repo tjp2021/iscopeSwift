@@ -12,11 +12,6 @@ class CaptionSettingsViewModel: ObservableObject {
             saveColor()
         }
     }
-    @Published var verticalPosition: Double = 0.8 {  // Default 80% from top (near bottom)
-        didSet {
-            savePosition()
-        }
-    }
     
     init() {
         // Load saved font size
@@ -29,11 +24,6 @@ class CaptionSettingsViewModel: ObservableObject {
            components.count >= 3 {
             self.captionColor = Color(red: components[0], green: components[1], blue: components[2])
         }
-        
-        // Load saved position
-        if let savedPosition = UserDefaults.standard.object(forKey: "caption_vertical_position") as? Double {
-            self.verticalPosition = savedPosition
-        }
     }
     
     private func saveFontSize() {
@@ -44,9 +34,5 @@ class CaptionSettingsViewModel: ObservableObject {
         if let components = UIColor(captionColor).cgColor.components {
             UserDefaults.standard.set(components, forKey: "caption_color")
         }
-    }
-    
-    private func savePosition() {
-        UserDefaults.standard.set(verticalPosition, forKey: "caption_vertical_position")
     }
 } 

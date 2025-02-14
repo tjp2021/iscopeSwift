@@ -225,13 +225,7 @@ private struct CaptionsOverlay: View {
     var body: some View {
         GeometryReader { geometry in
             VStack {
-                // Add top safe zone
-                let safeZone = geometry.size.height * 0.15 // 15% padding top and bottom
-                let availableHeight = geometry.size.height - (safeZone * 2)
-                let adjustedPosition = (availableHeight * captionSettings.verticalPosition) + safeZone
-                
                 Spacer()
-                    .frame(height: adjustedPosition)
                 
                 // Caption text
                 if !captionManager.currentText.isEmpty {
@@ -246,81 +240,14 @@ private struct CaptionsOverlay: View {
                                 .fill(Color.black.opacity(0.75))
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                         )
+                        .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.horizontal)
+                        .padding(.bottom, geometry.size.height * 0.15)
                 }
-                
-                Spacer()
-                
-                // Bottom controls row with language selector
-                VStack(spacing: 16) {
-                    if translationViewModel.isTranslating {
-                        LoadingOverlay(message: "Translating...")
-                    } else {
-                        HStack {
-                            Spacer()
-                            
-                            // Language selector
-                            Menu {
-                                ForEach(translationViewModel.availableLanguages, id: \.self) { language in
-                                    Button(action: {
-                                        Task {
-                                            if language != "en" {
-                                                do {
-                                                    try await translationViewModel.translate(video: video, to: language)
-                                                    if let updatedVideo = try await fetchUpdatedVideo(video.id) {
-                                                        video = updatedVideo
-                                                        captionManager.updateLanguage(language, translations: updatedVideo.translations)
-                                                    }
-                                                } catch {
-                                                    print("[DEBUG] Translation error: \(error.localizedDescription)")
-                                                }
-                                            } else {
-                                                captionManager.updateLanguage(language, translations: video.translations)
-                                            }
-                                        }
-                                    }) {
-                                        HStack {
-                                            Text(languageName(for: language))
-                                            if captionManager.currentLanguage == language {
-                                                Image(systemName: "checkmark")
-                                            }
-                                        }
-                                    }
-                                }
-                            } label: {
-                                HStack {
-                                    Image(systemName: "globe")
-                                    Text(languageName(for: captionManager.currentLanguage))
-                                }
-                                .padding(8)
-                                .background(Color.black.opacity(0.75))
-                                .cornerRadius(8)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal)
             }
         }
     }
     
-    private func languageName(for code: String) -> String {
-        switch code {
-        case "en": return "English"
-        case "es": return "Spanish"
-        case "fr": return "French"
-        case "de": return "German"
-        case "it": return "Italian"
-        case "pt": return "Portuguese"
-        case "ru": return "Russian"
-        case "ja": return "Japanese"
-        case "ko": return "Korean"
-        case "zh": return "Chinese"
-        default: return code.uppercased()
-        }
-    }
-    
-    // Add this helper function to CaptionsOverlay
     private func fetchUpdatedVideo(_ videoId: String) async throws -> Video? {
         let db = Firestore.firestore()
         let docSnapshot = try await db.collection("videos").document(videoId).getDocument()
@@ -407,6 +334,7 @@ struct VideoPageView: View {
     @StateObject private var playerManager = VideoPlayerManager()
     @StateObject private var captionManager = CaptionManager()
     @StateObject private var captionSettings = CaptionSettingsViewModel()
+    @StateObject private var translationViewModel = TranslationViewModel()
     @State private var player: AVPlayer?
     @State private var showError = false
     @State private var errorMessage: String?
@@ -418,6 +346,50 @@ struct VideoPageView: View {
     @State private var showingCaptionSettings = false
     @State private var showingTranscript = false
     @State private var showingExportOptions = false
+    
+    private func languageName(for code: String) -> String {
+        switch code {
+        case "en": return "English"
+        case "es": return "Spanish"
+        case "fr": return "French"
+        case "de": return "German"
+        case "it": return "Italian"
+        case "pt": return "Portuguese"
+        case "ru": return "Russian"
+        case "ja": return "Japanese"
+        case "ko": return "Korean"
+        case "zh": return "Chinese"
+        default: return code.uppercased()
+        }
+    }
+    
+    private func fetchUpdatedVideo(_ videoId: String) async throws -> Video? {
+        let db = Firestore.firestore()
+        let docSnapshot = try await db.collection("videos").document(videoId).getDocument()
+        if var data = docSnapshot.data() {
+            // Convert Firestore Timestamp to milliseconds since 1970
+            if let createdAtTimestamp = data["createdAt"] as? Timestamp {
+                data["createdAt"] = createdAtTimestamp.dateValue().timeIntervalSince1970 * 1000
+            }
+            
+            // Convert timestamps in translations if they exist
+            if var translations = data["translations"] as? [String: [String: Any]] {
+                for (language, var translationData) in translations {
+                    if let lastUpdatedTimestamp = translationData["lastUpdated"] as? Timestamp {
+                        translationData["lastUpdated"] = lastUpdatedTimestamp.dateValue().timeIntervalSince1970 * 1000
+                        translations[language] = translationData
+                    }
+                }
+                data["translations"] = translations
+            }
+            
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .millisecondsSince1970
+            let jsonData = try JSONSerialization.data(withJSONObject: data)
+            return try decoder.decode(Video.self, from: jsonData)
+        }
+        return nil
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -439,11 +411,10 @@ struct VideoPageView: View {
                 // Side Menu
                 VStack {
                     Spacer()
+                        .frame(height: geometry.size.height * 0.2)
                     HStack {
                         Spacer()
                         VStack(spacing: 20) {
-                            Spacer() // Add top spacer for vertical centering
-                            
                             // Transcript Button
                             if let segments = video.transcriptionSegments, !segments.isEmpty {
                                 Button(action: {
@@ -503,27 +474,61 @@ struct VideoPageView: View {
                                     .foregroundColor(.white)
                             }
                             
-                            Spacer() // Add bottom spacer for vertical centering
+                            Spacer()
                         }
                         .padding(.trailing, 20)
                     }
+                    Spacer()
                 }
                 
                 // Add bottom controls overlay
                 VStack {
                     Spacer()
                     HStack {
-                        Spacer()
-                        
-                        // Captions Button
+                        // CC Button (Left)
                         Button(action: {
                             showingCaptionSettings = true
                         }) {
+                            Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
+                                .font(.system(size: 24))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.leading, 20)
+
+                        Spacer()
+
+                        // Language selector (Right)
+                        Menu {
+                            ForEach(translationViewModel.availableLanguages, id: \.self) { language in
+                                Button(action: {
+                                    Task {
+                                        if language != "en" {
+                                            do {
+                                                try await translationViewModel.translate(video: video, to: language)
+                                                if let updatedVideo = try await fetchUpdatedVideo(video.id) {
+                                                    video = updatedVideo
+                                                    captionManager.updateLanguage(language, translations: updatedVideo.translations)
+                                                }
+                                            } catch {
+                                                print("[DEBUG] Translation error: \(error.localizedDescription)")
+                                            }
+                                        } else {
+                                            captionManager.updateLanguage(language, translations: video.translations)
+                                        }
+                                    }
+                                }) {
+                                    HStack {
+                                        Text(languageName(for: language))
+                                        if captionManager.currentLanguage == language {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
                             HStack {
-                                Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
-                                    .font(.system(size: 24))
-                                Text(showCaptions ? "CC" : "CC")
-                                    .font(.system(size: 16, weight: .medium))
+                                Image(systemName: "globe")
+                                Text(languageName(for: captionManager.currentLanguage))
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
@@ -531,8 +536,8 @@ struct VideoPageView: View {
                             .cornerRadius(8)
                             .foregroundColor(.white)
                         }
+                        .padding(.trailing, 20)
                     }
-                    .padding(.trailing, 20)
                     .padding(.bottom, 20)
                 }
                 
@@ -545,7 +550,6 @@ struct VideoPageView: View {
                             captionSettings: captionSettings,
                             video: $video
                         )
-                            .padding(.bottom, 100)
                     }
                 }
             }

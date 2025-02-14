@@ -26,7 +26,6 @@ struct ExportJob: Codable {
 struct CaptionSettings: Codable {
     var fontSize: Double
     var captionColor: String
-    var verticalPosition: Double
 }
 
 @MainActor
@@ -63,7 +62,6 @@ class ExportManager: ObservableObject {
         // Get caption settings from UserDefaults
         let fontSize = UserDefaults.standard.double(forKey: "caption_font_size")
         let colorComponents = UserDefaults.standard.array(forKey: "caption_color") as? [CGFloat] ?? [1.0, 1.0, 1.0] // Default to white
-        let verticalPosition = UserDefaults.standard.double(forKey: "caption_vertical_position")
         
         // Convert color components to hex string for ASS/SSA format (&HAABBGGRR)
         let colorHex = String(format: "&H00%02X%02X%02X&", 
@@ -73,10 +71,10 @@ class ExportManager: ObservableObject {
         
         let captionSettings = CaptionSettings(
             fontSize: fontSize > 0 ? fontSize : 20, // Default to 20 if not set
-            captionColor: colorHex,
-            verticalPosition: verticalPosition > 0 ? verticalPosition : 0.8 // Default to 0.8 if not set
+            captionColor: colorHex
         )
         
+        // Create the export job document
         let job = ExportJob(
             id: jobId,
             userId: userId,
@@ -85,65 +83,51 @@ class ExportManager: ObservableObject {
             status: .pending,
             createdAt: now,
             updatedAt: now,
+            error: nil,
+            downloadUrl: nil,
+            progress: nil,
             captionSettings: captionSettings
         )
         
-        print("[DEBUG] ExportManager - Creating Firestore document for job: \(jobId)")
+        // Convert job to dictionary
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        let jobData = try encoder.encode(job)
+        var jobDict = try JSONSerialization.jsonObject(with: jobData) as! [String: Any]
         
-        // Convert segments to Firestore-compatible format
-        let segmentsData: [[String: Any]] = segments.map { segment -> [String: Any] in
-            return [
-                "text": segment.text as String,
-                "startTime": segment.startTime as Double,
-                "endTime": segment.endTime as Double
-            ]
-        }
+        // Convert dates to Firestore Timestamps
+        jobDict["createdAt"] = Timestamp(date: now)
+        jobDict["updatedAt"] = Timestamp(date: now)
         
-        // Create the job in Firestore
-        let documentData: [String: Any] = [
-            "id": job.id,
-            "userId": job.userId,
-            "videoId": job.videoId,
-            "language": job.language,
-            "status": job.status.rawValue,
-            "createdAt": job.createdAt,
-            "updatedAt": job.updatedAt,
-            "segments": segmentsData,
+        // Save to Firestore
+        try await db.collection("exportJobs").document(jobId).setData(jobDict)
+        
+        // Notify server to start processing
+        let serverRequest = [
+            "jobId": jobId,
+            "videoId": video.id,
+            "language": language,
             "captionSettings": [
                 "fontSize": captionSettings.fontSize,
-                "captionColor": captionSettings.captionColor,
-                "verticalPosition": captionSettings.verticalPosition
-            ] as [String: Any]
-        ]
+                "captionColor": captionSettings.captionColor
+            ]
+        ] as [String: Any]
         
-        try await db.collection("exportJobs").document(jobId).setData(documentData)
-        
-        // Trigger the export process on the server
-        guard let url = URL(string: "\(serverUrl)/export/process/\(jobId)") else {
-            print("[ERROR] ExportManager - Invalid server URL")
-            throw NSError(domain: "ExportManager", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
+        guard let url = URL(string: "\(serverUrl)/start-export") else {
+            throw URLError(.badURL)
         }
         
-        print("[DEBUG] ExportManager - Sending request to server: \(url)")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body: [String: Any] = [
-            "videoId": video.id as String,
-            "language": language as String,
-            "segments": segmentsData as [[String: Any]]
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = try JSONSerialization.data(withJSONObject: serverRequest)
         
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            print("[ERROR] ExportManager - Server request failed with status: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
-            throw NSError(domain: "ExportManager", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to start export process"])
+              (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
         }
         
-        print("[DEBUG] ExportManager - Job created successfully")
         return job
     }
     
@@ -167,7 +151,6 @@ class ExportManager: ObservableObject {
         let captionSettingsData = data["captionSettings"] as? [String: Any] ?? [:]
         let fontSize = captionSettingsData["fontSize"] as? Double ?? 20
         let captionColor = captionSettingsData["captionColor"] as? String ?? ""
-        let verticalPosition = captionSettingsData["verticalPosition"] as? Double ?? 0.8
         
         // Convert to JSON and decode using our Codable implementation
         let decoder = JSONDecoder()
@@ -178,8 +161,7 @@ class ExportManager: ObservableObject {
             var job = try decoder.decode(ExportJob.self, from: jsonData)
             job.captionSettings = CaptionSettings(
                 fontSize: fontSize,
-                captionColor: captionColor,
-                verticalPosition: verticalPosition
+                captionColor: captionColor
             )
             return job
         } catch {
@@ -223,7 +205,6 @@ class ExportManager: ObservableObject {
                     let captionSettingsData = data["captionSettings"] as? [String: Any] ?? [:]
                     let fontSize = captionSettingsData["fontSize"] as? Double ?? 20
                     let captionColor = captionSettingsData["captionColor"] as? String ?? ""
-                    let verticalPosition = captionSettingsData["verticalPosition"] as? Double ?? 0.8
                     
                     // Convert to JSON and decode using our Codable implementation
                     let decoder = JSONDecoder()
@@ -234,8 +215,7 @@ class ExportManager: ObservableObject {
                         var job = try decoder.decode(ExportJob.self, from: jsonData)
                         job.captionSettings = CaptionSettings(
                             fontSize: fontSize,
-                            captionColor: captionColor,
-                            verticalPosition: verticalPosition
+                            captionColor: captionColor
                         )
                         continuation.yield(job)
                     } catch {
