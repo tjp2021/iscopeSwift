@@ -7,17 +7,70 @@ private struct VideoDetailsSection: View {
     @Binding var title: String
     @Binding var description: String
     @Binding var selectedItem: PhotosPickerItem?
+    @State private var isPickerPresented = false
     
     var body: some View {
-        Section(header: Text("Video Details")) {
-            TextField("Title", text: $title)
-            TextField("Description", text: $description)
+        VStack(spacing: 24) {
+            if selectedItem == nil {
+                PhotosPicker(selection: $selectedItem,
+                           matching: .videos) {
+                    VStack(spacing: 16) {
+                        Image(systemName: "video.badge.plus")
+                            .font(.system(size: 48))
+                            .foregroundColor(.blue)
+                        
+                        Text("Select Video")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 200)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(style: StrokeStyle(lineWidth: 2, dash: [8]))
+                            .foregroundColor(Color.blue.opacity(0.3))
+                    )
+                    .background(Color.blue.opacity(0.05))
+                    .cornerRadius(12)
+                }
+            } else {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.title2)
+                    Text("Video Selected")
+                        .font(.headline)
+                    Spacer()
+                    Button(action: { selectedItem = nil }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.title2)
+                    }
+                }
+                .padding()
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(12)
+            }
             
-            PhotosPicker(selection: $selectedItem,
-                       matching: .videos) {
-                Label("Select Video", systemImage: "video")
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Title")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    TextField("Enter video title", text: $title)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                }
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Description")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    TextField("Enter video description (optional)", text: $description)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                }
             }
         }
+        .padding()
     }
 }
 
@@ -26,11 +79,24 @@ private struct UploadProgressSection: View {
     let progress: Double
     
     var body: some View {
-        Section {
+        VStack(spacing: 16) {
             ProgressView(value: progress) {
-                Text("Uploading... \(Int(progress * 100))%")
+                HStack {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .foregroundColor(.blue)
+                    Text("Uploading...")
+                        .font(.headline)
+                    Spacer()
+                    Text("\(Int(progress * 100))%")
+                        .font(.headline)
+                        .foregroundColor(.blue)
+                }
             }
+            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+            .padding(.horizontal)
         }
+        .padding()
+        .background(Color.blue.opacity(0.05))
     }
 }
 
@@ -52,41 +118,51 @@ struct UploadVideoView: View {
     
     var body: some View {
         NavigationView {
-            Form {
-                VideoDetailsSection(
-                    title: $title,
-                    description: $description,
-                    selectedItem: $selectedItem
-                )
-                
-                if viewModel.isUploading {
-                    UploadProgressSection(progress: viewModel.uploadProgress)
-                }
-                
-                if let videoId = currentVideoId, transcriptionViewModel.isTranscribing {
-                    Section {
+            ScrollView {
+                VStack(spacing: 24) {
+                    VideoDetailsSection(
+                        title: $title,
+                        description: $description,
+                        selectedItem: $selectedItem
+                    )
+                    
+                    if viewModel.isUploading {
+                        UploadProgressSection(progress: viewModel.uploadProgress)
+                    }
+                    
+                    if let videoId = currentVideoId, transcriptionViewModel.isTranscribing {
                         TranscriptionProgressView(viewModel: transcriptionViewModel, videoId: videoId)
+                            .padding()
+                            .background(Color.blue.opacity(0.05))
+                            .cornerRadius(12)
+                            .padding(.horizontal)
                     }
                 }
             }
             .navigationTitle("Upload Video")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         cleanup()
                         dismiss()
                     }
+                    .foregroundColor(.secondary)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Upload") {
+                    Button(action: {
                         Task {
                             if let item = selectedItem {
                                 await handleVideoSelection(item)
                             }
                         }
+                    }) {
+                        Text("Upload")
+                            .fontWeight(.semibold)
                     }
                     .disabled(selectedItem == nil || title.isEmpty || viewModel.isUploading)
+                    .opacity(selectedItem == nil || title.isEmpty || viewModel.isUploading ? 0.5 : 1)
                 }
             }
             .alert("Upload Status", isPresented: $showAlert) {
@@ -98,10 +174,6 @@ struct UploadVideoView: View {
                 }
             } message: {
                 Text(alertMessage)
-            }
-            .onChange(of: selectedItem) { _, newItem in
-                guard let item = newItem else { return }
-                handleVideoSelection(item)
             }
         }
     }
