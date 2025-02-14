@@ -91,7 +91,8 @@ struct CreatorVideoDetailView: View {
     @State private var player: AVPlayer?
     @State private var isPlaying = false
     @State private var showingDeleteConfirmation = false
-    @StateObject private var viewModel = MyVideosViewModel()
+    @ObservedObject var viewModel: MyVideosViewModel
+    @EnvironmentObject private var feedViewModel: VideoFeedViewModel
     
     var body: some View {
         NavigationStack {
@@ -193,6 +194,7 @@ struct CreatorVideoDetailView: View {
                 Button("Delete", role: .destructive) {
                     Task {
                         await viewModel.deleteVideo(video)
+                        await feedViewModel.refreshVideos()
                         dismiss()
                     }
                 }
@@ -240,6 +242,7 @@ struct StatView: View {
 struct MyVideosView: View {
     @StateObject private var viewModel = MyVideosViewModel()
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var feedViewModel: VideoFeedViewModel
     @State private var videoToDelete: Video?
     @State private var showingDeleteConfirmation = false
     @State private var selectedVideo: Video?
@@ -337,6 +340,7 @@ struct MyVideosView: View {
                     Button("Delete", role: .destructive) {
                         Task {
                             await viewModel.deleteVideo(video)
+                            await feedViewModel.refreshVideos()
                             videoToDelete = nil
                         }
                     }
@@ -347,20 +351,18 @@ struct MyVideosView: View {
             } message: {
                 Text("Are you sure you want to delete this video? This action cannot be undone.")
             }
-            .fullScreenCover(isPresented: $showingVideoPlayer, content: {
+            .fullScreenCover(isPresented: $showingVideoPlayer) {
                 if let video = selectedVideo {
-                    CreatorVideoDetailView(video: video)
-                }
-            })
-            .onChange(of: selectedVideo) { _, video in
-                if let video = video {
-                    print("[MyVideosView] Video selected: \(video.title)")
+                    CreatorVideoDetailView(video: video, viewModel: viewModel)
+                        .environmentObject(feedViewModel)
                 }
             }
             .onChange(of: showingVideoPlayer) { _, isShowing in
-                print("[MyVideosView] Video player presentation state: \(isShowing)")
                 if !isShowing {
                     selectedVideo = nil
+                    Task {
+                        await viewModel.fetchUserVideos()
+                    }
                 }
             }
             .onAppear {
