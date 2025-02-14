@@ -76,27 +76,25 @@ private struct VideoDetailsSection: View {
 
 // Upload Progress Section Component
 private struct UploadProgressSection: View {
-    let progress: Double
+    let status: String
     
     var body: some View {
-        VStack(spacing: 16) {
-            ProgressView(value: progress) {
-                HStack {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .foregroundColor(.blue)
-                    Text("Uploading...")
-                        .font(.headline)
-                    Spacer()
-                    Text("\(Int(progress * 100))%")
-                        .font(.headline)
-                        .foregroundColor(.blue)
-                }
-            }
-            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-            .padding(.horizontal)
+        VStack(spacing: 20) {
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(.blue)
+            
+            Text(status)
+                .font(.headline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
         }
-        .padding()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
         .background(Color.blue.opacity(0.05))
+        .cornerRadius(12)
+        .padding(.horizontal)
     }
 }
 
@@ -127,7 +125,7 @@ struct UploadVideoView: View {
                     )
                     
                     if viewModel.isUploading {
-                        UploadProgressSection(progress: viewModel.uploadProgress)
+                        UploadProgressSection(status: viewModel.uploadStatus)
                     }
                     
                     if let videoId = currentVideoId, transcriptionViewModel.isTranscribing {

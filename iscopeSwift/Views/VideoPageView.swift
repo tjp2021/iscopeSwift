@@ -252,60 +252,52 @@ private struct CaptionsOverlay: View {
                 Spacer()
                 
                 // Bottom controls row with language selector
-                HStack {
-                    // Translation loading indicator
+                VStack(spacing: 16) {
                     if translationViewModel.isTranslating {
+                        LoadingOverlay(message: "Translating...")
+                    } else {
                         HStack {
-                            ProgressView()
-                                .tint(.white)
-                            Text("Translating...")
-                                .foregroundColor(.white)
-                        }
-                        .padding(8)
-                        .background(Color.black.opacity(0.75))
-                        .cornerRadius(8)
-                    }
-                    
-                    Spacer()
-                    
-                    // Language selector
-                    Menu {
-                        ForEach(translationViewModel.availableLanguages, id: \.self) { language in
-                            Button {
-                                Task {
-                                    if language != "en" {
-                                        do {
-                                            try await translationViewModel.translate(video: video, to: language)
-                                            if let updatedVideo = try await fetchUpdatedVideo(video.id) {
-                                                video = updatedVideo
-                                                captionManager.updateLanguage(language, translations: updatedVideo.translations)
+                            Spacer()
+                            
+                            // Language selector
+                            Menu {
+                                ForEach(translationViewModel.availableLanguages, id: \.self) { language in
+                                    Button(action: {
+                                        Task {
+                                            if language != "en" {
+                                                do {
+                                                    try await translationViewModel.translate(video: video, to: language)
+                                                    if let updatedVideo = try await fetchUpdatedVideo(video.id) {
+                                                        video = updatedVideo
+                                                        captionManager.updateLanguage(language, translations: updatedVideo.translations)
+                                                    }
+                                                } catch {
+                                                    print("[DEBUG] Translation error: \(error.localizedDescription)")
+                                                }
+                                            } else {
+                                                captionManager.updateLanguage(language, translations: video.translations)
                                             }
-                                        } catch {
-                                            print("[DEBUG] Translation error: \(error.localizedDescription)")
                                         }
-                                    } else {
-                                        captionManager.updateLanguage(language, translations: video.translations)
+                                    }) {
+                                        HStack {
+                                            Text(languageName(for: language))
+                                            if captionManager.currentLanguage == language {
+                                                Image(systemName: "checkmark")
+                                            }
+                                        }
                                     }
                                 }
                             } label: {
                                 HStack {
-                                    Text(languageName(for: language))
-                                    if captionManager.currentLanguage == language {
-                                        Image(systemName: "checkmark")
-                                    }
+                                    Image(systemName: "globe")
+                                    Text(languageName(for: captionManager.currentLanguage))
                                 }
+                                .padding(8)
+                                .background(Color.black.opacity(0.75))
+                                .cornerRadius(8)
                             }
                         }
-                    } label: {
-                        HStack {
-                            Image(systemName: "globe")
-                            Text(languageName(for: captionManager.currentLanguage))
-                        }
-                        .padding(8)
-                        .background(Color.black.opacity(0.75))
-                        .cornerRadius(8)
                     }
-                    .disabled(translationViewModel.isTranslating)
                 }
                 .padding(.horizontal)
             }
@@ -360,12 +352,21 @@ private struct CaptionsOverlay: View {
 
 // Loading overlay component
 private struct LoadingOverlay: View {
+    let message: String
+    
     var body: some View {
-        ZStack {
-            Color.black
+        HStack(spacing: 8) {
             ProgressView()
                 .tint(.white)
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.white)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.6))
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(0.2), radius: 4)
     }
 }
 
@@ -426,7 +427,7 @@ struct VideoPageView: View {
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .edgesIgnoringSafeArea(.all)
                 } else if playerManager.isLoading {
-                    LoadingOverlay()
+                    LoadingOverlay(message: "Loading video...")
                 } else if showError {
                     ErrorOverlay(
                         errorMessage: errorMessage,

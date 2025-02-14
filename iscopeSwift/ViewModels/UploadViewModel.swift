@@ -11,6 +11,7 @@ class UploadViewModel: ObservableObject {
     private let db = Firestore.firestore()
     @Published var isUploading = false
     @Published var uploadProgress: Double = 0
+    @Published var uploadStatus: String = ""
     
     // Single source of truth for server URL
     #if targetEnvironment(simulator)
@@ -222,12 +223,14 @@ class UploadViewModel: ObservableObject {
     // Main upload function that coordinates all steps
     func uploadVideo(item: PhotosPickerItem, title: String, description: String) async throws -> (videoUrl: String, videoId: String) {
         isUploading = true
+        uploadStatus = "Preparing your video for upload..."
         uploadProgress = 0
         
         do {
             print("Starting video upload process...")
             
             // Load video data directly from PhotosPickerItem
+            uploadStatus = "Reading video data..."
             print("Loading video data...")
             guard let videoData = try await item.loadTransferable(type: Data.self) else {
                 print("❌ Failed to load video data from PhotosPickerItem")
@@ -235,6 +238,7 @@ class UploadViewModel: ObservableObject {
                     userInfo: [NSLocalizedDescriptionKey: "Could not load video data"])
             }
             
+            uploadStatus = "Optimizing video quality..."
             print("✅ Successfully loaded video data")
             print("Video data size: \(videoData.count) bytes")
             
@@ -255,6 +259,7 @@ class UploadViewModel: ObservableObject {
             _ = try await asset.load(.isPlayable)
             
             // Export the video with compression
+            uploadStatus = "Compressing video for faster upload..."
             print("Exporting video with compression...")
             let exporter = try await exportVideoToMP4(asset: asset, outputURL: outputFile)
             
@@ -269,13 +274,13 @@ class UploadViewModel: ObservableObject {
             let fileName = "\(UUID().uuidString).mp4"
             
             // Step 1: Get pre-signed URLs
+            uploadStatus = "Preparing secure upload connection..."
             print("Fetching presigned URLs...")
             let (uploadURL, downloadURL, videoKey) = try await fetchPresignedUrl(fileName: fileName)
             print("Got presigned URLs - Upload: \(uploadURL), Download: \(downloadURL)")
             
-            uploadProgress = 0.3
-            
             // Step 2: Upload to S3
+            uploadStatus = "Uploading video to server..."
             print("Uploading to S3...")
             let uploadSuccess = try await uploadToS3(presignedUrl: uploadURL, videoData: compressedVideoData)
             guard uploadSuccess else {
@@ -285,22 +290,21 @@ class UploadViewModel: ObservableObject {
             }
             print("Successfully uploaded to S3")
             
-            uploadProgress = 0.7
-            
             // Step 3: Store metadata with download URL
+            uploadStatus = "Saving video details..."
             print("Storing metadata...")
             let videoId = try await storeVideoMetadata(videoKey: videoKey, downloadURL: downloadURL, title: title, description: description)
             print("Stored metadata with videoId: \(videoId)")
             
-            uploadProgress = 0.9
-            
             // Step 4: Notify server to start transcription with download URL
+            uploadStatus = "Starting transcription process..."
             print("Notifying server for transcription...")
             try await notifyTranscriptionServer(videoUrl: downloadURL, videoId: videoId)
             print("Transcription process started")
             
             uploadProgress = 1.0
             isUploading = false
+            uploadStatus = "Upload complete! Starting transcription..."
             
             return (videoUrl: downloadURL, videoId: videoId)
         } catch {
@@ -308,6 +312,7 @@ class UploadViewModel: ObservableObject {
             print("Error details: \(String(describing: error))")
             isUploading = false
             uploadProgress = 0
+            uploadStatus = "Upload failed: \(error.localizedDescription)"
             throw error
         }
     }
